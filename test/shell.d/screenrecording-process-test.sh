@@ -12,6 +12,7 @@ import tempfile
 from types import SimpleNamespace
 from unittest import mock
 root = Path(sys.argv[1])
+sys.dont_write_bytecode = True
 loader = importlib.machinery.SourceFileLoader('recorder', str(root / 'bin/omarchy-capture-screenrecording-process'))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 m = importlib.util.module_from_spec(spec); loader.exec_module(m)

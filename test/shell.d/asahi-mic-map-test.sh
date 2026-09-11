@@ -15,6 +15,7 @@ import threading
 import time
 from unittest import mock
 root = Path(sys.argv[1])
+sys.dont_write_bytecode = True
 loader = importlib.machinery.SourceFileLoader('mic', str(root / 'bin/omarchy-audio-asahi-mic-map'))
 spec = importlib.util.spec_from_loader(loader.name, loader)
 m = importlib.util.module_from_spec(spec); loader.exec_module(m)
