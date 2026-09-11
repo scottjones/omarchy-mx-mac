@@ -46,3 +46,9 @@ run_leaf 1
 after=$(wc -c <"$input")
 (( before == after )) || fail "the touchpad leaf is idempotent"
 pass "the touchpad leaf is idempotent"
+
+printf '%s\n' 'hl.config({' '  input = {' '    touchpad = {' '      natural_scroll = true,' '      tap_to_click = false,' '    },' '  },' '})' >"$input"
+run_leaf 1
+! grep -q 'omarchy-apple-touchpad' "$input" ||
+  fail "an existing macOS-like override is not duplicated"
+pass "an existing macOS-like override is not duplicated"

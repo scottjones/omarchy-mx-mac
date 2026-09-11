@@ -1,4 +1,3 @@
-#!/bin/bash
 # Sound on Apple Silicon needs three things this install would otherwise never
 # get, for three different reasons.
 #

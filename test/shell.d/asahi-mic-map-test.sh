@@ -232,9 +232,10 @@ with tempfile.TemporaryDirectory() as temporary:
         if contents: assert policy.read_text() == contents
     policy.unlink(); policy.symlink_to(directory / 'missing-custom-target')
     result = subprocess.run(command, env=dict(env, MAP_STATUS='1'), capture_output=True, text=True)
-    assert result.returncode == 1 and 'live-diagnostic' in result.stderr and policy.is_symlink()
+    assert result.returncode == 0 and 'live-diagnostic' in result.stderr and policy.is_symlink()
+    assert 'microphone mapping failed' in result.stderr
     result = subprocess.run(['bash', '-euo', 'pipefail', str(root / 'migrations/1789136143.sh')], env=dict(env, MAP_STATUS='1'), capture_output=True, text=True)
-    assert result.returncode == 1 and 'live-diagnostic' in result.stderr, 'migration must remain failed on a live mapper error'
+    assert result.returncode == 0 and 'live-diagnostic' in result.stderr, 'migration must warn instead of aborting on a live mapper error'
     wants = home / '.config/systemd/user/graphical-session.target.wants/omarchy-asahi-mic.service'
     assert wants.is_symlink() and os.readlink(wants).endswith('omarchy-asahi-mic.service')
     assert not (home / '.config/systemd/user/omarchy-asahi-mic.service').exists()
