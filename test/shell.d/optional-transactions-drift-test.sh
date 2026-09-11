@@ -51,10 +51,30 @@ function tokenize(text) {
   return tokens
 }
 
+// Contents of `name=( ... )` in a recipe, one token per line or on the
+// opening line. Used when the recipe passes "${name[@]}" to pkg-add.
+function bashArrayContents(lines, name) {
+  const start = lines.findIndex(line => new RegExp(`^\\s*${name}=\\(`).test(line))
+  if (start < 0) return []
+  const names = []
+  for (let i = start; i < lines.length; i++) {
+    let line = lines[i].replace(/#.*/, '')
+    if (i === start) line = line.replace(new RegExp(`^\\s*${name}=\\(`), '')
+    const closed = /\)\s*$/.test(line)
+    line = line.replace(/\)\s*$/, '')
+    for (const token of line.trim().split(/\s+/)) {
+      if (token && !token.includes('$')) names.push(token)
+    }
+    if (closed) break
+  }
+  return names
+}
+
 // Package names that follow omarchy-pkg-add / omarchy-pkg-aur-add in a run
 // of script lines, with continuations joined and comments dropped. A shell
 // metacharacter ends the command; a variable is a name the recipe resolves
-// itself, so it is left to the overrides.
+// itself, so it is left to the overrides — except "${array[@]}", which expands
+// from a matching array assignment in the same file (the x86 preinstall names).
 function packageNamesIn(lines) {
   const joined = lines.join('\n').replace(/\\\n/g, ' ')
   const names = []
@@ -65,6 +85,14 @@ function packageNamesIn(lines) {
     while ((match = pattern.exec(line))) {
       for (const token of match[1].trim().split(/\s+/)) {
         const name = token.replace(/^["']|["']$/g, '')
+        const arrayRef = name.match(/^\$\{([A-Za-z_][A-Za-z0-9_]*)\[@\]\}$/)
+        if (arrayRef) {
+          for (const item of bashArrayContents(lines, arrayRef[1])) {
+            if (!item || names.includes(item)) continue
+            names.push(item)
+          }
+          continue
+        }
         if (!name || name.includes('$')) continue
         if (!names.includes(name)) names.push(name)
       }
