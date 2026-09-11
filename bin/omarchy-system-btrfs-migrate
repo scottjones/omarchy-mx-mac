@@ -11,7 +11,8 @@
 # snapper, omarchy-system-factory-reset, and the rest of the snapshot tooling
 # work on Apple Silicon exactly as they do on the x86 ISO install.
 #
-# Run it as root on a freshly installed Asahi Arch system, BEFORE bootstrap.sh.
+# Run it as root on a freshly installed Asahi Arch system, before first boot
+# into the Omarchy snapshot layout.
 # Either way it stages an initramfs hook and reboots, and the work happens
 # while the root is unmounted. What that work is depends on where the
 # installer left the machine:
@@ -742,8 +743,8 @@ confirm_reboot() {
   fi
 }
 
-# Under --yes the typed confirmation is skipped: the caller (omarchy-mac-setup)
-# has already asked. $1 is the word a human would have typed.
+# Under --yes the typed confirmation is skipped: the caller has already asked.
+# $1 is the word a human would have typed.
 confirm_or_yes() {
   local word="$1" typed
   if (( ASSUME_YES )); then
@@ -878,14 +879,14 @@ stage_encrypt() {
 ensure_packages() {
   local encrypt="$1" missing=()
 
-  command -v mkfs.btrfs >/dev/null 2>&1 || missing+=(btrfs-progs)
+  omarchy-cmd-missing mkfs.btrfs && missing+=(btrfs-progs)
   if (( encrypt )); then
-    command -v cryptsetup >/dev/null 2>&1 || missing+=(cryptsetup)
+    omarchy-cmd-missing cryptsetup && missing+=(cryptsetup)
   fi
 
   if (( ${#missing[@]} )); then
     log "Installing ${missing[*]}"
-    pacman -Sy --noconfirm --needed "${missing[@]}"
+    omarchy-pkg-add "${missing[@]}"
   fi
 }
 
