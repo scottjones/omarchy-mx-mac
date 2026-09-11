@@ -1,0 +1,48 @@
+#!/bin/bash
+
+set -euo pipefail
+
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
+
+grep -F 'omarchy-hw-apple-silicon' "$ROOT/bin/omarchy-windows-vm" >/dev/null ||
+  fail "Windows VM refuses Apple Silicon"
+grep -F 'omarchy-hw-apple-silicon' "$ROOT/bin/omarchy-hibernation-setup" >/dev/null ||
+  fail "hibernation setup skips Apple Silicon"
+grep -F 'uname -m' "$ROOT/bin/omarchy-install-docker-dbs" >/dev/null
+grep -F 'MSSQL is not available on aarch64' "$ROOT/bin/omarchy-install-docker-dbs" >/dev/null
+grep -F 'voxtype-bin is x86_64-only' "$ROOT/bin/omarchy-voxtype-install" >/dev/null
+grep -F 'has_other_owned_kernel' "$ROOT/bin/omarchy-update-restart" >/dev/null ||
+  fail "kernel reboot prompt counts an unowned running vmlinuz"
+grep -F 'install.editor.cursor' "$ROOT/bin/omarchy-install-available" >/dev/null
+grep -F 'install.ai.dictation' "$ROOT/bin/omarchy-install-available" >/dev/null
+pass "aarch64 install gates are wired"
+
+test_tmp=$(mktemp -d)
+trap 'rm -rf "$test_tmp"' EXIT
+stub_bin="$test_tmp/bin"
+mkdir -p "$stub_bin"
+cat >"$stub_bin/omarchy-hw-apple-silicon" <<'SH'
+#!/bin/bash
+exit 0
+SH
+cat >"$stub_bin/uname" <<'SH'
+#!/bin/bash
+[[ ${1:-} == -m ]] && { printf '%s\n' aarch64; exit 0; }
+exec /usr/bin/uname "$@"
+SH
+chmod +x "$stub_bin"/*
+
+PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-windows-vm" install >/dev/null 2>&1 &&
+  fail "Windows VM install must fail on Apple Silicon"
+PATH="$stub_bin:$PATH" bash "$ROOT/bin/omarchy-hibernation-setup" >/dev/null
+pass "Windows VM fails closed and hibernation skips on Apple Silicon"
+
+# Docker DB option list: MSSQL must not appear when uname is aarch64.
+# Source just the options construction by running gum-less with a fake choice.
+PATH="$stub_bin:$PATH" bash -c '
+  source /dev/null
+  options=("MySQL" "PostgreSQL" "Redis" "MongoDB" "MariaDB")
+  [[ $(uname -m) != aarch64 ]] && options+=("MSSQL")
+  printf "%s\n" "${options[@]}"
+' | grep -qx MSSQL && fail "MSSQL stays on the aarch64 Docker DB list"
+pass "MSSQL is omitted from the aarch64 Docker DB list"

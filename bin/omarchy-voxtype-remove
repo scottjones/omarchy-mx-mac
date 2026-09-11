@@ -15,7 +15,11 @@ if omarchy-cmd-present voxtype; then
   systemctl --user daemon-reload
 
   # Remove packages and configs
-  omarchy-pkg-drop voxtype-bin
+  if [[ $(uname -m) == aarch64 ]]; then
+    omarchy-pkg-drop voxtype wtype
+  else
+    omarchy-pkg-drop voxtype-bin
+  fi
   rm -rf ~/.config/voxtype
   rm -rf ~/.local/share/voxtype
   hyprctl reload >/dev/null
