@@ -10,9 +10,9 @@ grep -F 'omarchy-hw-apple-silicon' "$ROOT/bin/omarchy-hibernation-setup" >/dev/n
   fail "hibernation setup skips Apple Silicon"
 grep -F 'uname -m' "$ROOT/bin/omarchy-install-docker-dbs" >/dev/null
 grep -F 'MSSQL is not available on aarch64' "$ROOT/bin/omarchy-install-docker-dbs" >/dev/null
-grep -F 'voxtype-bin is x86_64-only' "$ROOT/bin/omarchy-voxtype-install" >/dev/null
-grep -F 'has_other_owned_kernel' "$ROOT/bin/omarchy-update-restart" >/dev/null ||
-  fail "kernel reboot prompt counts an unowned running vmlinuz"
+grep -F 'aarch64_voxtype_src' "$ROOT/bin/omarchy-voxtype-install" >/dev/null
+grep -F 'pacman -Qo "$kernel"' "$ROOT/bin/omarchy-update-restart" >/dev/null ||
+  fail "kernel reboot prompt still matches the running package-owned vmlinuz"
 grep -F 'install.editor.cursor' "$ROOT/bin/omarchy-install-available" >/dev/null
 grep -F 'install.ai.dictation' "$ROOT/bin/omarchy-install-available" >/dev/null
 pass "aarch64 install gates are wired"
