@@ -45,7 +45,7 @@ EOF
 }
 
 install_cursor_aarch64() {
-  local tmp_dir appimage_url wrapper_path desktop_template url_handler_template icon_size icon_source
+  local tmp_dir appimage_url desktop_template url_handler_template icon_size icon_source
 
   if [[ -x $CURSOR_BIN && -f $CURSOR_APPIMAGE ]]; then
     echo "Cursor is already installed at $CURSOR_APPIMAGE"
@@ -56,7 +56,6 @@ install_cursor_aarch64() {
   trap 'rm -rf "$tmp_dir"' RETURN
 
   appimage_url="https://api2.cursor.sh/updates/download/golden/linux-arm64/cursor/$VERSION"
-  wrapper_path="$tmp_dir/cursor"
 
   echo "Downloading Cursor $VERSION for aarch64..."
   curl -L --fail --output "$tmp_dir/cursor.AppImage" "$appimage_url"
@@ -68,16 +67,10 @@ install_cursor_aarch64() {
     ./cursor.AppImage --appimage-extract >/dev/null
   )
 
-  cat >"$wrapper_path" <<'EOF'
-#!/bin/bash
-exec /opt/cursor/cursor.AppImage --disable-gpu --disable-gpu-sandbox --in-process-gpu "$@"
-EOF
-  chmod +x "$wrapper_path"
-
   echo "Installing Cursor to $CURSOR_DIR..."
   sudo mkdir -p "$CURSOR_DIR"
   sudo install -m 755 "$tmp_dir/cursor.AppImage" "$CURSOR_APPIMAGE"
-  sudo install -m 755 "$wrapper_path" "$CURSOR_BIN"
+  omarchy-cmd-electron-gl-wrap cursor "$CURSOR_APPIMAGE"
 
   desktop_template="$tmp_dir/squashfs-root/usr/share/applications/cursor.desktop"
   url_handler_template="$tmp_dir/squashfs-root/usr/share/applications/cursor-url-handler.desktop"
@@ -118,11 +111,10 @@ echo "Installing Cursor..."
 
 if [[ $(uname -m) == aarch64 ]]; then
   install_cursor_aarch64
+  configure_cursor
 else
   omarchy-pkg-add cursor-bin
 fi
-
-configure_cursor
 
 echo "Cursor installed successfully"
 nohup gtk-launch cursor >/dev/null 2>&1 </dev/null &

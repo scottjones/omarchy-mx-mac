@@ -16,7 +16,7 @@ if omarchy-cmd-present voxtype; then
 
   # Remove packages and configs
   if [[ $(uname -m) == aarch64 ]]; then
-    omarchy-pkg-drop voxtype wtype
+    omarchy-pkg-drop voxtype
   else
     omarchy-pkg-drop voxtype-bin
   fi

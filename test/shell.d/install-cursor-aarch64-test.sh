@@ -8,6 +8,8 @@ installer="$ROOT/bin/omarchy-install-editor-cursor"
 grep -F 'uname -m' "$installer" >/dev/null
 grep -F 'cursor-bin' "$installer" >/dev/null
 grep -F 'cursor.AppImage' "$installer" >/dev/null
+grep -F 'omarchy-cmd-electron-gl-wrap cursor' "$installer" >/dev/null
+grep -F 'configure_cursor' "$installer" >/dev/null
 grep -F 'omarchy-install-editor-cursor' "$ROOT/default/omarchy/omarchy-menu.jsonc" >/dev/null
 grep -F 'omarchy-cmd-present cursor' "$ROOT/default/omarchy/omarchy-menu.jsonc" >/dev/null
 pass "Cursor has an aarch64 AppImage installer and command-presence menu guards"

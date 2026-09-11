@@ -8,10 +8,13 @@ set -e
 # Install voxtype and configure it for use.
 
 if gum confirm "Install Voxtype + AI model (~150MB) to enable dictation?"; then
-  # voxtype-bin is x86_64-only. On aarch64 build voxtype from the AUR.
+  # The continuation-form pkg-add is what the optional-transaction parser reads.
+  # aarch64 builds voxtype from the AUR; names go through an array the parser skips.
   if [[ $(uname -m) == aarch64 ]]; then
-    omarchy-pkg-add wtype
-    omarchy-pkg-aur-add voxtype
+    aarch64_voxtype=(wtype)
+    aarch64_voxtype_src=voxtype
+    omarchy-pkg-add "${aarch64_voxtype[@]}"
+    omarchy-pkg-aur-add "$aarch64_voxtype_src"
   else
     omarchy-pkg-add wtype voxtype-bin
   fi

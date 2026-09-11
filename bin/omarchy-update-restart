@@ -10,25 +10,17 @@ confirm_reboot() {
 
 running_kernel=$(uname -r)
 kernel_updated=true
-has_other_owned_kernel=false
 
 for kernel in /usr/lib/modules/*/vmlinuz; do
-  [[ -f $kernel ]] || continue
-  installed_kernel=$(basename "$(dirname "$kernel")")
-  if [[ $installed_kernel == "$running_kernel" ]]; then
-    # linux-asahi's vmlinuz is not always package-owned; the running
-    # modules tree is enough to know this kernel is still current.
-    kernel_updated=false
-    continue
-  fi
-  if pacman -Qo "$kernel" &>/dev/null; then
-    has_other_owned_kernel=true
+  if [[ -f $kernel ]] && pacman -Qo "$kernel" &>/dev/null; then
+    installed_kernel=$(basename "$(dirname "$kernel")")
+
+    if [[ $installed_kernel == $running_kernel ]]; then
+      kernel_updated=false
+      break
+    fi
   fi
 done
-
-if $has_other_owned_kernel; then
-  kernel_updated=true
-fi
 
 if [[ $kernel_updated == "true" ]]; then
   confirm_reboot "Linux kernel has been updated. Reboot?"
