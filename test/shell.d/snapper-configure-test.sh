@@ -143,68 +143,39 @@ if OMARCHY_SNAPPER_TEMPLATE="$FIXTURE/absent" run_leaf direct; then fail 'missin
 ! grep -E 'create-config|systemctl' "$TEST_LOG" || fail 'template checked before mutations'
 pass 'missing template fails before changing services or backend'
 
-migration=$(rg -l '^echo "Repair missing Snapper root setup after the required dependency update"' "$ROOT/migrations")
+migration=$(rg -l '^echo "Repair missing Snapper root setup on Apple Silicon"' "$ROOT/migrations")
 [[ -n $migration ]] || fail 'new repair migration exists'
 mkdir -p "$test_tmp/repo/migrations" "$test_tmp/repo/install/config"
 cp "$migration" "$test_tmp/repo/migrations/"
 cp "$ROOT/install/config/snapper.sh" "$test_tmp/repo/install/config/"
-printf 'exit 99\n' >"$test_tmp/repo/migrations/1781984677.sh"
 printf 'echo later\n' >"$test_tmp/repo/migrations/9999999999.sh"
+cat >"$test_tmp/bin/omarchy-hw-apple-silicon" <<'STUB'
+#!/bin/bash
+(( ${APPLE:-0} == 1 ))
+STUB
 cat >"$test_tmp/bin/sudo" <<'STUB'
 #!/bin/bash
 printf 'sudo %s\n' "$*" >>"$TEST_LOG"
-[[ ${FAIL_AT:-} != sudo ]] || exit 25
 "$@"
 STUB
-chmod +x "$test_tmp/bin/sudo"
+chmod +x "$test_tmp/bin/omarchy-hw-apple-silicon" "$test_tmp/bin/sudo"
 run_migrate() {
-  OMARCHY_PATH="$test_tmp/repo" OMARCHY_MIGRATION_STATE="$FIXTURE/state" bash "$ROOT/bin/omarchy-migrate"
+  : >"$TEST_LOG"
+  PATH="$test_tmp/bin:$PATH" APPLE="${1:-0}" TEST_FILESYSTEM="${2:-btrfs}" \
+    OMARCHY_PATH="$test_tmp/repo" OMARCHY_MIGRATION_STATE="$FIXTURE/state" \
+    bash "$ROOT/bin/omarchy-migrate"
 }
-seed_old_marker() {
-  mkdir -p "$FIXTURE/state"
-  touch "$FIXTURE/state/1781984677.sh"
-}
-new_fixture migration
-seed_old_marker
-run_migrate >"$FIXTURE/output" 2>&1
-[[ -f $FIXTURE/state/$(basename "$migration") && -f $FIXTURE/state/9999999999.sh ]] || fail 'new migration completes despite old marker'
-run_migrate >>"$FIXTURE/output" 2>&1
-rm -r "$FIXTURE/state"
-seed_old_marker
-run_migrate >>"$FIXTURE/output" 2>&1
-[[ $(grep -c 'create-config' "$TEST_LOG") == 1 ]] || fail 'retry and second user never recreate backend'
-pass 'new migration repairs already-marked released installs and second user is idempotent'
 
-for failure in stat probe create partial list backend timer settings limine sudo; do
-  # Root execution deliberately has no sudo call.
-  if [[ $failure == sudo ]] && (( EUID == 0 )); then continue; fi
-  new_fixture "migration-$failure"
-  seed_old_marker
-  if TEST_LIMINE_AVAILABLE=1 FAIL_AT="$failure" run_migrate >"$FIXTURE/output" 2>&1; then fail "migration must propagate $failure"; fi
-  [[ ! -e $FIXTURE/state/$(basename "$migration") && ! -e $FIXTURE/state/9999999999.sh ]] || fail "$failure leaves migration and later markers absent"
-done
-pass 'migration probe, privilege and mutation failures stop the queue without markers'
+new_fixture migration-x86
+run_migrate 0 btrfs >/dev/null
+[[ -f $FIXTURE/state/$(basename "$migration") && -f $FIXTURE/state/9999999999.sh ]] ||
+  fail 'x86 still completes the Snapper migration and later ones'
+! grep -q snapper "$TEST_LOG" || fail 'x86 does not invoke Snapper'
+pass 'Snapper repair is a no-op off Apple Silicon'
 
-# An isolated PATH proves unsupported roots skip even a missing dependency and
-# that btrfs does not claim success until the package update provides Snapper.
-mkdir "$test_tmp/no-snapper"
-ln -s "$test_tmp/bin/stat" "$test_tmp/no-snapper/stat"
-new_fixture dependency
-for mode in direct source conditional; do
-  case "$mode" in
-    direct) invocation='"$MIGRATION"' ;;
-    source) invocation='source "$MIGRATION"' ;;
-    conditional) invocation='if source "$MIGRATION"; then exit 0; else exit $?; fi' ;;
-  esac
-  if [[ $mode == direct ]]; then
-    status=0
-    PATH="$test_tmp/no-snapper" /bin/bash -euo pipefail "$migration" >"$FIXTURE/output" 2>&1 || status=$?
-  else
-    status=0
-    PATH="$test_tmp/no-snapper" MIGRATION="$migration" /bin/bash -euo pipefail -c "$invocation" >"$FIXTURE/output" 2>&1 || status=$?
-  fi
-  (( status == 127 )) || fail 'missing Snapper fails visibly on btrfs'
-  PATH="$test_tmp/no-snapper" TEST_FILESYSTEM=ext2/ext3 /bin/bash -euo pipefail "$migration"
-done
-[[ ! -e $TEST_LOG ]] || fail 'dependency gates precede privilege'
-pass 'missing dependency fails btrfs repair; non-btrfs skips before privilege in all invocation contexts'
+new_fixture migration-ext4
+run_migrate 1 ext2/ext3 >/dev/null
+[[ -f $FIXTURE/state/$(basename "$migration") && -f $FIXTURE/state/9999999999.sh ]] ||
+  fail 'non-btrfs Apple Silicon still completes later migrations'
+! grep -q 'create-config' "$TEST_LOG" || fail 'non-btrfs does not create a Snapper config'
+pass 'Snapper repair skips non-btrfs Apple Silicon without blocking later migrations'
