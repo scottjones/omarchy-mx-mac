@@ -79,13 +79,15 @@ omarchy-install-available() {
   local id=${1:-}
   [[ -n $id ]] || return 1
   __omarchy_optional_load || return 1
-  # x86 installs the AUR packages; aarch64 unpacks the official tarball.
-  if [[ $id == "install.service.1password" ]]; then
-    if ! $__omarchy_arch_loaded; then
-      __omarchy_optional_arch=$(uname -m) || return 1
-      __omarchy_arch_loaded=true
-    fi
-    [[ $__omarchy_optional_arch == aarch64 ]] && return 0
+  # x86 uses AUR/repo names; aarch64 has a tarball or AppImage installer instead.
+  if ! $__omarchy_arch_loaded; then
+    __omarchy_optional_arch=$(uname -m) || return 1
+    __omarchy_arch_loaded=true
+  fi
+  if [[ $__omarchy_optional_arch == aarch64 ]]; then
+    case $id in
+      install.service.1password | install.editor.cursor | install.ai.dictation) return 0 ;;
+    esac
   fi
   if [[ -n ${__omarchy_optional_aur[$id]-} ]]; then
     if ! $__omarchy_arch_loaded; then

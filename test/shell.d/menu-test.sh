@@ -270,15 +270,16 @@ assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // dropped, so the list reads as a catalog of what Omarchy can install.
 // An Install row may hide for one reason other than the software already
 // being there: no package for this architecture at all, which is what the
-// `omarchy-install-available <id>` guard asks. Chromium Account is the sole
-// Install row with anything else left to hide for, so any other `when:` here
-// is a row that went back to vanishing once installed.
+// `omarchy-install-available <id>` guard asks. Chromium Account hides for
+// a Chromium-policy reason. Windows hides on Apple Silicon because the VM
+// is x86_64 KVM. Any other `when:` here is a row that vanished once installed.
 const availabilityGuard = when => typeof when === 'string' && when.startsWith('omarchy-install-available ')
 assertDeepEqual(
   defaultItems
     .filter(item => item.id.startsWith('install.') && item.action && item.when && !availabilityGuard(item.when))
-    .map(item => item.id),
-  ['install.service.chromium-account'],
+    .map(item => item.id)
+    .sort(),
+  ['install.service.chromium-account', 'install.windows'].sort(),
   'menu never hides an Install row because the software is already there'
 )
 assert(
@@ -288,7 +289,7 @@ assert(
   'every availability guard names its own row'
 )
 assert(
-  ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust', 'install.windows'].every(
+  ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust'].every(
     id => defaultById[id].disabled && (!defaultById[id].when || availabilityGuard(defaultById[id].when))
   ),
   'menu dims the Install rows for software that is already installed'

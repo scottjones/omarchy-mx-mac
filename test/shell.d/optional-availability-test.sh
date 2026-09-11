@@ -59,6 +59,8 @@ for arch in x86_64 aarch64; do
   expected_1password=1
   [[ $arch != aarch64 ]] || expected_1password=0
   check "$expected_1password" omarchy-install-available install.service.1password
+  check "$expected_1password" omarchy-install-available install.editor.cursor
+  check "$expected_1password" omarchy-install-available install.ai.dictation
   check 0 omarchy-pkg-available provided
   check 0 omarchy-pkg-available 'provided>=1'
   check 1 omarchy-pkg-available 'provided>=9'
