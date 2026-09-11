@@ -56,6 +56,9 @@ for arch in x86_64 aarch64; do
     check 0 omarchy-install-available "install.browser.$browser"
   done
   check 0 omarchy-install-available install.service.nordvpn
+  expected_1password=1
+  [[ $arch != aarch64 ]] || expected_1password=0
+  check "$expected_1password" omarchy-install-available install.service.1password
   check 0 omarchy-pkg-available provided
   check 0 omarchy-pkg-available 'provided>=1'
   check 1 omarchy-pkg-available 'provided>=9'

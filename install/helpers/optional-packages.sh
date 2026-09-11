@@ -79,6 +79,14 @@ omarchy-install-available() {
   local id=${1:-}
   [[ -n $id ]] || return 1
   __omarchy_optional_load || return 1
+  # x86 installs the AUR packages; aarch64 unpacks the official tarball.
+  if [[ $id == "install.service.1password" ]]; then
+    if ! $__omarchy_arch_loaded; then
+      __omarchy_optional_arch=$(uname -m) || return 1
+      __omarchy_arch_loaded=true
+    fi
+    [[ $__omarchy_optional_arch == aarch64 ]] && return 0
+  fi
   if [[ -n ${__omarchy_optional_aur[$id]-} ]]; then
     if ! $__omarchy_arch_loaded; then
       __omarchy_optional_arch=$(uname -m) || return 1
