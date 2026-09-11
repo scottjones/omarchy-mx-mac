@@ -12,8 +12,8 @@ flags="$ROOT/config/chromium-flags.conf"
 grep -Fq 'hardware/apple/share-picker.sh' "$all" ||
   fail "the share-picker leaf runs during user setup"
 [[ -f $migration ]] || fail "existing installs get the share-picker migration"
-grep -Fq 'WebRTCPipeWireCapturer' "$flags" ||
-  fail "shipped Chromium flags enable the PipeWire capturer"
+! grep -Fq 'WebRTCPipeWireCapturer' "$flags" ||
+  fail "shipped Chromium flags must not force the PipeWire capturer on x86"
 pass "fresh and existing installs are wired to the screen-share picker"
 
 test_tmp=$(mktemp -d)
@@ -59,7 +59,13 @@ pass "aarch64 builds the -git picker when missing"
 conf="$test_tmp/home/.config/chromium-flags.conf"
 mkdir -p "$(dirname "$conf")"
 printf '%s\n' '--enable-features=TouchpadOverscrollHistoryNavigation' >"$conf"
-HOME="$test_tmp/home" TEST_ARCH=x86_64 PATH="$stub_bin:$PATH" bash "$migration"
+HOME="$test_tmp/home" TEST_ARCH=x86_64 TEST_LOG="$calls" PATH="$stub_bin:$PATH" bash "$migration"
+! grep -Fq 'WebRTCPipeWireCapturer' "$conf" ||
+  fail "the migration must not rewrite x86 Chromium flags"
+pass "the migration leaves x86 Chromium flags alone"
+
+printf '%s\n' '--enable-features=TouchpadOverscrollHistoryNavigation' >"$conf"
+HOME="$test_tmp/home" TEST_ARCH=aarch64 TEST_LOG="$calls" PATH="$stub_bin:$PATH" bash "$migration"
 grep -Fq 'WebRTCPipeWireCapturer' "$conf" ||
-  fail "the migration enables PipeWire capture on existing Chromium flags"
-pass "the migration enables PipeWire capture on existing Chromium flags"
+  fail "the migration enables PipeWire capture on existing aarch64 Chromium flags"
+pass "the migration enables PipeWire capture on existing aarch64 Chromium flags"

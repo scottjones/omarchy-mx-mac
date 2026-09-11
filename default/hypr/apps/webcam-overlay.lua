@@ -20,8 +20,6 @@ o.window({ class = "^WebcamOverlay-(small|medium|large)$", title = "^WebcamOverl
   float = true,
   pin = true,
   no_initial_focus = true,
-  no_focus = true,
-  no_follow_mouse = true,
   no_dim = true,
   opacity = "1 1",
 })

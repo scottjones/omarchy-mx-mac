@@ -77,3 +77,10 @@ for suppressed_flag in -noverifyfiles -nobootstrapupdate -skipinitialbootstrap -
     fail "bootstrapped Steam launch keeps $suppressed_flag"
 done
 pass "bootstrapped Steam launches with persistent workaround flags"
+
+remover="$ROOT/bin/omarchy-remove-gaming-steam"
+grep -Fq 'omarchy-launch-steam' "$remover" ||
+  fail "Steam removal drops the Asahi desktop entry"
+grep -Fq 'fex-steam' "$remover" ||
+  fail "Steam removal drops the FEX tree"
+pass "Steam removal cleans the Asahi launcher and FEX tree"

@@ -51,3 +51,9 @@ with tempfile.TemporaryDirectory() as temporary:
         assert closed.call_count == 6
 print('ok - executable identity rejects recorder argument paths and safely shares status/signal selection')
 PY
+
+grep -Fq 'omarchy-capture-screenrecording-process' "$ROOT/shell/plugins/bar/indicators/ScreenRecording.qml" ||
+  fail "the bar recording indicator uses the process helper"
+! grep -Fq 'gpu-screen-recorder' "$ROOT/shell/plugins/bar/indicators/ScreenRecording.qml" ||
+  fail "the bar recording indicator still greps gpu-screen-recorder"
+pass "the bar recording indicator follows the recorder process helper"
