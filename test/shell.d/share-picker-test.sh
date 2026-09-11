@@ -40,7 +40,7 @@ chmod +x "$stub_bin"/*
 run_leaf() {
   : >"$calls"
   TEST_ARCH="${1:-x86_64}" PICKER_PRESENT="${2:-0}" TEST_LOG="$calls" \
-    PATH="$stub_bin:$PATH" bash -c 'source "$1"' _ "$leaf"
+    HOME="$test_tmp/home" PATH="$stub_bin:$PATH" bash -c 'source "$1"' _ "$leaf"
 }
 
 run_leaf x86_64 0
@@ -58,6 +58,18 @@ pass "aarch64 builds the -git picker when missing"
 
 conf="$test_tmp/home/.config/chromium-flags.conf"
 mkdir -p "$(dirname "$conf")"
+printf '%s\n' '--enable-features=TouchpadOverscrollHistoryNavigation' >"$conf"
+run_leaf x86_64 0
+! grep -Fq 'WebRTCPipeWireCapturer' "$conf" ||
+  fail "the share-picker leaf must not rewrite x86 Chromium flags"
+pass "the share-picker leaf leaves x86 Chromium flags alone"
+
+printf '%s\n' '--enable-features=TouchpadOverscrollHistoryNavigation' >"$conf"
+run_leaf aarch64 1
+grep -Fq 'WebRTCPipeWireCapturer' "$conf" ||
+  fail "a fresh aarch64 install enables PipeWire capture on existing Chromium flags"
+pass "a fresh aarch64 install enables PipeWire capture on existing Chromium flags"
+
 printf '%s\n' '--enable-features=TouchpadOverscrollHistoryNavigation' >"$conf"
 HOME="$test_tmp/home" TEST_ARCH=x86_64 TEST_LOG="$calls" PATH="$stub_bin:$PATH" bash "$migration"
 ! grep -Fq 'WebRTCPipeWireCapturer' "$conf" ||
