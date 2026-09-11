@@ -86,6 +86,8 @@ recovery_note() {
 # ISO installs keep their boot files in a private UUID directory on the ESP.
 # Moving /boot and reinstalling GRUB would overwrite the shared boot owner.
 # The UUID check also protects installs made before the marker was introduced.
+# etc/omarchy-mac-iso-shared-esp is the fork ISO's compatibility marker; keep
+# the name so machines already stamped by that ISO are still refused.
 refuse_iso_boot_layout() {
   local system_root=${1:-/} root_uuid esp_directory
 
@@ -134,8 +136,8 @@ main() {
 
   [[ -d /boot/grub ]] || fail "no /boot/grub; this expects a GRUB install"
   [[ ! -e /boot.old ]] || fail "/boot.old already exists; move it aside first"
-  command -v grub-install >/dev/null || fail "grub-install not found"
-  command -v mkinitcpio >/dev/null || fail "mkinitcpio not found"
+  omarchy-cmd-present grub-install || fail "grub-install not found"
+  omarchy-cmd-present mkinitcpio || fail "mkinitcpio not found"
 
   boot_kb=$(boot_size_kb)
   avail_kb=$(esp_avail_kb /boot/efi)
