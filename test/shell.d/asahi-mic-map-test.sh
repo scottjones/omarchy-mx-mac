@@ -29,10 +29,13 @@ class Audio:
         self.linked = {}; self.missing = None; self.fail_link = None; self.fail_module = False
         self.fail_query = False; self.fail_graph = False; self.concurrent = False
         self.next_id = 100; self.auto_input = False; self.initial_input = default; self.no_dsp = False
+        self.playback_sinks = None
     def objects(self, kind):
         if self.fail_query: raise RuntimeError('live Pulse query failed')
         if kind == 'sources': return ([] if self.no_dsp else [obj(DSP)]) + [obj('usb-mic')] + ([copy.deepcopy(self.monitor)] if self.existing else [])
-        if kind == 'sinks': return [obj('speakers')] + ([copy.deepcopy(self.sink)] if self.existing else [])
+        if kind == 'sinks':
+            playback = self.playback_sinks if self.playback_sinks is not None else [obj('speakers')]
+            return playback + ([copy.deepcopy(self.sink)] if self.existing else [])
         if kind == 'modules': return [self.module] if self.module else []
         raise AssertionError(kind)
     def modules(self): return [self.module] if self.module else []
@@ -135,6 +138,31 @@ with tempfile.TemporaryDirectory() as temporary:
     except m.Deferred: pass
     else: raise AssertionError('Apple desktop without a mic array should defer safely')
     assert not audio.calls[2:] and audio.default == 'usb-mic'
+    # WirePlumber persists the mapping sink as the session default. It is not
+    # a speaker; pick a real sink even when that is what get-default-sink returns.
+    audio = Audio(existing=True, default=DSP)
+    audio.output = m.SINK
+    audio.linked = {90: (21, 'existing'), 91: (22, 'existing')}
+    m.reconcile(audio, state())
+    assert audio.output == 'speakers', 'persisted mapping sink must not stay the default output'
+    def playback(name, priority, ports=None, active=None):
+        return dict(name=name, volume={'front-left': {'value': 1}, 'front-right': {'value': 1}}, mute=False,
+                    ports=ports or [], active_port=active, properties={'priority.session': str(priority)})
+    jack = playback('headphones', 1000, ports=[{'name': '[Out] Headphones', 'availability': 'not available'}], active='[Out] Headphones')
+    speakers = playback('speakers', 850)
+    audio = Audio(existing=True, default=DSP)
+    audio.output = m.SINK
+    audio.linked = {90: (21, 'existing'), 91: (22, 'existing')}
+    audio.playback_sinks = [jack, speakers]
+    m.reconcile(audio, state())
+    assert audio.output == 'speakers', 'unavailable headphone jack must not beat the speaker DSP'
+    jack_in = playback('headphones', 1000, ports=[{'name': '[Out] Headphones', 'availability': 'available'}], active='[Out] Headphones')
+    audio = Audio(existing=True, default=DSP)
+    audio.output = m.SINK
+    audio.linked = {90: (21, 'existing'), 91: (22, 'existing')}
+    audio.playback_sinks = [speakers, jack_in]
+    m.reconcile(audio, state())
+    assert audio.output == 'headphones', 'a plugged headphone jack outranks the speaker DSP'
     for selected in (DSP, 'usb-mic', ''):
         for failure in (False, True):
             audio = Audio(default=selected); audio.auto_input = True
