@@ -10,7 +10,7 @@ cat >"$test_tmp/bin/pacman" <<'STUB'
 printf '%s\n' "$*" >>"$CALLS"
 case $1 in
 -Slq)
-  printf '%s\n' primary secondary zed omazed xpadneo-dkms linux-headers linux-asahi-headers | while read -r p; do
+  printf '%s\n' primary secondary zed omazed xpadneo-dkms linux-headers linux-asahi-headers wtype voxtype-bin 1password 1password-cli cursor-bin | while read -r p; do
     [[ $p == "${MISSING:-}" ]] || echo "$p"
   done ;;
 -Sp)
@@ -56,11 +56,9 @@ for arch in x86_64 aarch64; do
     check 0 omarchy-install-available "install.browser.$browser"
   done
   check 0 omarchy-install-available install.service.nordvpn
-  expected_1password=1
-  [[ $arch != aarch64 ]] || expected_1password=0
-  check "$expected_1password" omarchy-install-available install.service.1password
-  check "$expected_1password" omarchy-install-available install.editor.cursor
-  check "$expected_1password" omarchy-install-available install.ai.dictation
+  check 0 omarchy-install-available install.service.1password
+  check 0 omarchy-install-available install.editor.cursor
+  check 0 omarchy-install-available install.ai.dictation
   check 0 omarchy-pkg-available provided
   check 0 omarchy-pkg-available 'provided>=1'
   check 1 omarchy-pkg-available 'provided>=9'
