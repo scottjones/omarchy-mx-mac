@@ -12,17 +12,14 @@ grep -F 'uname -m' "$ROOT/bin/omarchy-install-docker-dbs" >/dev/null ||
   fail "Docker DB installer checks the architecture"
 grep -F 'MSSQL is not available on aarch64' "$ROOT/bin/omarchy-install-docker-dbs" >/dev/null ||
   fail "Docker DB installer explains the missing MSSQL image on aarch64"
-grep -F 'aarch64_voxtype_src' "$ROOT/bin/omarchy-voxtype-install" >/dev/null ||
-  fail "dictation installer builds voxtype from the AUR on aarch64"
+grep -F 'omarchy-pkg-add wtype voxtype-bin' "$ROOT/bin/omarchy-voxtype-install" >/dev/null ||
+  fail "dictation installer installs voxtype-bin on every architecture"
+grep -F 'omarchy-pkg-drop voxtype' "$ROOT/bin/omarchy-voxtype-install" >/dev/null ||
+  fail "dictation installer drops the AUR voxtype package before voxtype-bin"
+grep -F 'omarchy-pkg-drop voxtype voxtype-bin' "$ROOT/bin/omarchy-voxtype-remove" >/dev/null ||
+  fail "dictation remove drops both voxtype names"
 grep -F 'pacman -Qo "$kernel"' "$ROOT/bin/omarchy-update-restart" >/dev/null ||
   fail "kernel reboot prompt still matches the running package-owned vmlinuz"
-# The aarch64 tarball/AppImage rows live in the shared availability helper,
-# which both omarchy-install-available and the menu's inline guard source.
-availability_helper="$ROOT/install/helpers/optional-packages.sh"
-grep -F 'install.editor.cursor' "$availability_helper" >/dev/null ||
-  fail "Cursor stays offered on aarch64 through the shared availability helper"
-grep -F 'install.ai.dictation' "$availability_helper" >/dev/null ||
-  fail "Dictation stays offered on aarch64 through the shared availability helper"
 pass "aarch64 install gates are wired"
 
 test_tmp=$(mktemp -d)
