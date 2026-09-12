@@ -111,12 +111,52 @@ def restore_gain(audio, path):
         audio.run('pactl', 'set-' + kind + '-mute', name, '1' if validated['mute'] else '0')
 
 
+def sink_usable(sink):
+    ports = sink.get('ports') or []
+    if not ports:
+        return True
+    active = sink.get('active_port')
+    for port in ports:
+        if port.get('name') == active:
+            return port.get('availability') == 'available'
+    return False
+
+
+def session_priority(sink):
+    raw = (sink.get('properties') or {}).get('priority.session', 0)
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 0
+
+
+def rank_playback_sinks(sinks):
+    # Prefer an available active port, or a sink with no ports (DSP chains).
+    # Then WirePlumber's session priority, then name so the choice is stable.
+    candidates = [sink for sink in sinks if sink.get('name') and sink['name'] != SINK]
+    candidates.sort(key=lambda sink: (not sink_usable(sink), -session_priority(sink), sink['name']))
+    return [sink['name'] for sink in candidates]
+
+
 def restore_output(audio, previous):
-    if previous and previous != SINK and audio.run('pactl', 'get-default-sink') == SINK:
-        if previous in {obj['name'] for obj in audio.objects('sinks')}:
-            # Check again immediately before changing a default the module took.
-            if audio.run('pactl', 'get-default-sink') == SINK:
-                audio.run('pactl', 'set-default-sink', previous)
+    # The mapping sink is a stereo capture target, not a speaker. WirePlumber
+    # still promotes a newly loaded null sink (and will persist that choice
+    # across sessions). Always move default playback off it.
+    if audio.run('pactl', 'get-default-sink') != SINK:
+        return
+    sinks = audio.objects('sinks')
+    names = {obj['name'] for obj in sinks if obj.get('name')}
+    candidates = []
+    if previous and previous != SINK:
+        candidates.append(previous)
+    candidates.extend(name for name in rank_playback_sinks(sinks) if name not in candidates)
+    for name in candidates:
+        if name not in names:
+            continue
+        if audio.run('pactl', 'get-default-sink') != SINK:
+            return
+        audio.run('pactl', 'set-default-sink', name)
+        return
 
 
 def reconcile(audio, state, save_only=False):
