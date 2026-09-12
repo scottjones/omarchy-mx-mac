@@ -14,10 +14,9 @@ const fs = require('fs')
 const menu = requireFromRoot('shell/plugins/menu/MenuModel.js')
 const items = menu.parseMenuJsonc(fs.readFileSync(path.join(root, 'default/omarchy/omarchy-menu.jsonc'), 'utf8'))
 
-// Names a recipe mentions but does not require unconditionally: the kernel
-// headers the Xbox recipe adds for the running kernel, and omazed, which the
-// Zed recipe treats as an enhancement it can do without.
-const excludedNames = new Set(['omazed', 'linux-headers'])
+// The kernel headers the Xbox recipe names are added for the running kernel by
+// the availability helper as well, so they stay out of the manifest row.
+const excludedNames = new Set(['linux-headers'])
 
 // Recipes whose package name is a variable resolved at runtime carry their
 // base package here; the menu action itself is what would drift.
@@ -167,8 +166,8 @@ assert(
   `derived from the recipes:\n${wanted}\n\ncommitted in install/optional-packages.tsv:\n${actual}`
 )
 
-// Every derived row is guarded, and nothing else is: a guard without a
+// Every derived sync row and declared AUR row is guarded: a guard without a
 // transaction reports unavailable for every architecture.
 const guarded = items.filter(item => /^omarchy-install-available /.test(item.when || '')).map(item => item.id).sort()
-assertDeepEqual(guarded, [...derived.keys()].sort(), 'optional install guards cover exactly the rows with a transaction')
+assertDeepEqual(guarded, [...derived.keys(), ...aurOnly].sort(), 'optional install guards cover exactly the rows with a transaction')
 JS
