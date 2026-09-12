@@ -149,7 +149,7 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Super + F12` | Screenshot full display on Apple keyboards |
 | `Super + F11` | Screenshot region on Apple keyboards |
 | `Super + F10` | Screenshot window on Apple keyboards |
-| `Super + Alt + F12` | Start/stop fullscreen recording without audio on Apple keyboards |
+| `Super + Alt + F12` | Screen recording menu, then the whole display, on Apple keyboards |
 | `Super + Alt + [` | Make webcam overlay smaller while recording |
 | `Super + Alt + ]` | Make webcam overlay larger while recording |
 | `Alt + Shift + L` | Copy current URL from webapp or Chromium |
@@ -157,7 +157,7 @@ Usually on Linux, you need `Ctrl + Shift + C/V` to copy'n'paste in the terminal 
 | `Super + Ctrl + X` | Start/stop dictation (requires _Install > AI > Dictation_) |
 | `F9` | Push-to-talk dictation (requires _Install > AI > Dictation_) |
 
-With screenrecordings, the hotkey first asks which audio you want, then starts recording. Hit it again to stop. On an Apple keyboard, `Super + Alt + F12` starts a fullscreen recording immediately without audio. See [screenshots and recording](12-screenshots-recording.md) for the details.
+With screenrecordings, the hotkey first asks which audio you want, then starts recording. Hit it again to stop. On an Apple keyboard, `Super + Alt + F12` asks the same audio question, then records the whole display (no region picker). See [screenshots and recording](12-screenshots-recording.md) for the details.
 
 Apple keyboards use their top row for media controls by default. The Apple-specific shortcuts above work whether or not you hold `Fn`.
 

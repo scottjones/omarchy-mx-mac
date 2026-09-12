@@ -270,15 +270,16 @@ assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // dropped, so the list reads as a catalog of what Omarchy can install.
 // An Install row may hide for one reason other than the software already
 // being there: no package for this architecture at all, which is what the
-// `omarchy-install-available <id>` guard asks. Chromium Account is the sole
-// Install row with anything else left to hide for, so any other `when:` here
-// is a row that went back to vanishing once installed.
+// `omarchy-install-available <id>` guard asks. Chromium Account hides for
+// a Chromium-policy reason. Windows hides on Apple Silicon because the VM
+// is x86_64 KVM. Any other `when:` here is a row that vanished once installed.
 const availabilityGuard = when => typeof when === 'string' && when.startsWith('omarchy-install-available ')
 assertDeepEqual(
   defaultItems
     .filter(item => item.id.startsWith('install.') && item.action && item.when && !availabilityGuard(item.when))
-    .map(item => item.id),
-  ['install.service.chromium-account'],
+    .map(item => item.id)
+    .sort(),
+  ['install.service.chromium-account', 'install.windows'].sort(),
   'menu never hides an Install row because the software is already there'
 )
 assert(
@@ -288,7 +289,7 @@ assert(
   'every availability guard names its own row'
 )
 assert(
-  ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust', 'install.windows'].every(
+  ['install.browser.zen', 'install.editor.vscode', 'install.gaming.steam', 'install.development.rust'].every(
     id => defaultById[id].disabled && (!defaultById[id].when || availabilityGuard(defaultById[id].when))
   ),
   'menu dims the Install rows for software that is already installed'
@@ -450,8 +451,22 @@ assertEqual(
 )
 assertEqual(
   defaultById['trigger.capture.screenrecord.webcam'].when,
-  'omarchy-hw-webcam',
-  'menu only shows webcam screen recording when a webcam is available'
+  'omarchy-hw-webcam && ! omarchy-capture-screenrecording-process',
+  'menu only shows webcam screen recording when a webcam is available and nothing is recording'
+)
+assertEqual(
+  defaultById['trigger.capture.screenrecord.stop'].when,
+  'omarchy-capture-screenrecording-process',
+  'menu shows Stop Screenrecording for gpu-screen-recorder and wf-recorder'
+)
+assertEqual(
+  defaultById['trigger.capture.screenrecord-display'].when,
+  'false',
+  'fullscreen screenrecord audio menu is summoned by hotkey, not listed under Capture'
+)
+assert(
+  defaultById['trigger.capture.screenrecord-display.no-audio'].action.includes('--fullscreen'),
+  'fullscreen screenrecord audio rows start a display recording'
 )
 assert(
   /font\.family: row\.iconFont\.length > 0 \? row\.iconFont : root\.fontFamily/.test(menuQml),

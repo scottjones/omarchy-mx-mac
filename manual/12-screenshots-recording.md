@@ -13,7 +13,7 @@ On keyboards with a Print Screen key, one key and its modifiers handle screensho
 | `Super + F10` | Screenshot a window on an Apple keyboard |
 | `Super + F11` | Screenshot a region on an Apple keyboard |
 | `Super + F12` | Screenshot the full display on an Apple keyboard |
-| `Super + Alt + F12` | Start/stop fullscreen recording without audio on an Apple keyboard |
+| `Super + Alt + F12` | Screen recording audio menu, then the whole display, on an Apple keyboard |
 
 Omarchy configures the top row on Apple keyboards as media keys, and binds both the media keycodes and F10–F12. These shortcuts work with or without `Fn`.
 
@@ -44,7 +44,7 @@ The arrows and Tab move the cursor to the window they pick, so the highlight fol
 
 `Alt + Print Screen` opens _Trigger > Capture > Screenrecord_, which asks what you want on the soundtrack: no audio, desktop audio, desktop plus microphone, or desktop plus microphone plus webcam. That last one only shows up if you actually have a camera plugged in. Pick one and you get the same picker as a screenshot: drag a region, or click a window or monitor.
 
-On Apple Silicon, `Super + Alt + F12` starts a fullscreen recording immediately without audio. The same hotkey stops it.
+On an Apple keyboard, `Super + Alt + F12` opens the audio menu (or stops a recording that is already running), then records the whole display. `Alt + Print Screen` and `Super + Ctrl + C` still ask you to pick a region after the audio menu.
 
 Recording normally runs on gpu-screen-recorder, which encodes on the GPU at 60fps and falls back to the CPU if it has to. On Apple Silicon it uses wf-recorder with CPU encoding because the Asahi GPU has no supported hardware video encoder. The result is an MP4 in `~/Videos`, named `screenrecording-2026-08-13_14-22-05.mp4`. Set `OMARCHY_SCREENRECORD_DIR` to change that — but note that unlike the screenshot directory, this one has to exist already, or the recording refuses to start.
 
