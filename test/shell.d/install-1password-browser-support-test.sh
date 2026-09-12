@@ -1,94 +1,25 @@
 #!/bin/bash
 
-# The 1Password browser extension unlocks from the desktop app through
-# 1Password-BrowserSupport, and only when that binary is setgid to the
-# onepassword group. The aarch64 installer unpacks the official tarball, which
-# carries none of the .install hooks the x86 package gets, so this setup has to
-# be done by hand or the extension and the app stay separate logins.
+# The official 1password package's .install hooks setgid 1Password-BrowserSupport.
+# Apple Silicon used to unpack a tarball that had none of those hooks; both
+# arches now pkg-add the same packages. The AGX software-GL wrap stays in the
+# hardware leaf, not in this installer.
 
 set -euo pipefail
 
 source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
-test_tmp=$(mktemp -d)
-trap 'rm -rf "$test_tmp"' EXIT
-
-mock_bin="$test_tmp/bin"
-install_dir="$test_tmp/opt/1Password"
-mkdir -p "$mock_bin" "$install_dir"
-
-# An install that predates the browser-support setup: the app is on disk, the
-# helper binary is present, and neither the group nor the setgid bit exists.
-touch "$install_dir/1Password-BrowserSupport"
-bin_link="$test_tmp/bin-link/1password"
-mkdir -p "$(dirname "$bin_link")"
-printf '#!/bin/bash\necho 8.12.0\n' >"$bin_link"
-chmod +x "$bin_link"
-
-cat >"$mock_bin/sudo" <<'SH'
-#!/bin/bash
-exec "$@"
-SH
-
-cat >"$mock_bin/getent" <<'SH'
-#!/bin/bash
-[[ ${OMARCHY_TEST_GROUP_EXISTS:-false} == "true" ]]
-SH
-
-for cmd in groupadd chgrp chmod; do
-  cat >"$mock_bin/$cmd" <<SH
-#!/bin/bash
-printf '$cmd:%s\n' "\$*" >>"\$OMARCHY_TEST_LOG"
-SH
-done
-
-cat >"$mock_bin/omarchy-cmd-missing" <<'SH'
-#!/bin/bash
-exit 0
-SH
-cat >"$mock_bin/omarchy-cmd-present" <<'SH'
-#!/bin/bash
-exit 1
-SH
-
-chmod +x "$mock_bin"/*
-
-run_installer() {
-  PATH="$mock_bin:$PATH" \
-    OMARCHY_TEST_GROUP_EXISTS="$1" \
-    OMARCHY_TEST_LOG="$2" \
-    OMARCHY_1PASSWORD_INSTALL_DIR="$install_dir" \
-    OMARCHY_1PASSWORD_BIN_LINK="$bin_link" \
-    bash "$ROOT/bin/omarchy-install-service-1password" >/dev/null
-}
-
-# Already installed: the installer must still repair the browser integration
-# rather than exiting early, which is what the package's post_upgrade does.
-log="$test_tmp/log-missing"
-: >"$log"
-run_installer false "$log"
-
-grep -Fxq 'groupadd:onepassword' "$log" ||
-  fail "installer creates the onepassword group" "$(cat "$log")"
-pass "installer creates the onepassword group"
-
-grep -Fxq "chgrp:onepassword $install_dir/1Password-BrowserSupport" "$log" ||
-  fail "installer gives 1Password-BrowserSupport the onepassword group" "$(cat "$log")"
-pass "installer gives 1Password-BrowserSupport the onepassword group"
-
-grep -Fxq "chmod:g+s $install_dir/1Password-BrowserSupport" "$log" ||
-  fail "installer sets the setgid bit on 1Password-BrowserSupport" "$(cat "$log")"
-pass "installer sets the setgid bit on 1Password-BrowserSupport"
-
-# An existing group is left alone: groupadd would fail the script under set -e.
-log="$test_tmp/log-present"
-: >"$log"
-run_installer true "$log"
-
-grep -q '^groupadd:' "$log" &&
-  fail "installer does not re-create an existing onepassword group" "$(cat "$log")"
-pass "installer does not re-create an existing onepassword group"
-
-grep -Fxq "chmod:g+s $install_dir/1Password-BrowserSupport" "$log" ||
-  fail "installer still repairs setgid when the group already exists" "$(cat "$log")"
-pass "installer still repairs setgid when the group already exists"
+installer="$ROOT/bin/omarchy-install-service-1password"
+grep -Fq 'omarchy-pkg-add 1password 1password-cli' "$installer" ||
+  fail "1Password installs from the repos on every architecture"
+grep -Fq 'remove_aarch64_tarball_leftovers' "$installer" ||
+  fail "1Password removes tarball leftovers before pkg-add"
+! grep -Fq 'downloads.1password.com/linux/tar' "$installer" ||
+  fail "1Password no longer unpacks the aarch64 tarball"
+grep -Fq 'install_chromium_extension' "$installer" ||
+  fail "1Password still installs the Chromium extension"
+grep -Fq 'wrap_1password_for_agx' "$installer" ||
+  fail "1Password still wraps the packaged binary for software GL"
+grep -Fq '1password' "$ROOT/install/hardware/apple/electron-gl.sh" ||
+  fail "Apple Silicon still wraps 1Password for software GL"
+pass "1Password uses pkg-add and keeps the Chromium extension and AGX wrap"
