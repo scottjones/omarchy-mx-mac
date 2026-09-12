@@ -26,7 +26,7 @@ grep -F '`Super + F10` | Screenshot window on Apple keyboards' "$hotkeys" >/dev/
   fail "hotkeys list Super+F10 window capture on Apple keyboards"
 grep -F '`Super + F12` | Screenshot full display on Apple keyboards' "$hotkeys" >/dev/null ||
   fail "hotkeys list Super+F12 full-display capture on Apple keyboards"
-grep -F '`Super + Alt + F12` | Start/stop fullscreen recording without audio on Apple keyboards' "$hotkeys" >/dev/null ||
+grep -F '`Super + Alt + F12` | Screen recording menu, then the whole display, on Apple keyboards' "$hotkeys" >/dev/null ||
   fail "hotkeys list Super+Alt+F12 recording on Apple keyboards"
 grep -F 'whether or not you hold `Fn`' "$hotkeys" >/dev/null ||
   fail "hotkeys say Apple capture shortcuts work without Fn"

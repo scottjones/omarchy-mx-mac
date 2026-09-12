@@ -451,8 +451,22 @@ assertEqual(
 )
 assertEqual(
   defaultById['trigger.capture.screenrecord.webcam'].when,
-  'omarchy-hw-webcam',
-  'menu only shows webcam screen recording when a webcam is available'
+  'omarchy-hw-webcam && ! omarchy-capture-screenrecording-process',
+  'menu only shows webcam screen recording when a webcam is available and nothing is recording'
+)
+assertEqual(
+  defaultById['trigger.capture.screenrecord.stop'].when,
+  'omarchy-capture-screenrecording-process',
+  'menu shows Stop Screenrecording for gpu-screen-recorder and wf-recorder'
+)
+assertEqual(
+  defaultById['trigger.capture.screenrecord-display'].when,
+  'false',
+  'fullscreen screenrecord audio menu is summoned by hotkey, not listed under Capture'
+)
+assert(
+  defaultById['trigger.capture.screenrecord-display.no-audio'].action.includes('--fullscreen'),
+  'fullscreen screenrecord audio rows start a display recording'
 )
 assert(
   /font\.family: row\.iconFont\.length > 0 \? row\.iconFont : root\.fontFamily/.test(menuQml),

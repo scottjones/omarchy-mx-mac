@@ -47,11 +47,11 @@ o.bind("ALT + PRINT", "Screenrecording", "omarchy-capture-screenrecording --stop
 o.bind("SUPER + F12", "Screenshot Display", "omarchy-capture-screenshot fullscreen")
 o.bind("SUPER + F11", "Screenshot Region", "omarchy-capture-screenshot region")
 o.bind("SUPER + F10", "Screenshot Window", "omarchy-capture-screenshot windows")
-o.bind("SUPER + ALT + F12", "Screen recording Display", "omarchy-capture-screenrecording --fullscreen")
+o.bind("SUPER + ALT + F12", "Screen recording", "omarchy-capture-screenrecording --stop-recording || omarchy-menu toggle trigger.capture.screenrecord-display")
 o.bind("SUPER + XF86AudioMute", "Screenshot Window (Apple top row)", "omarchy-capture-screenshot windows")
 o.bind("SUPER + XF86AudioLowerVolume", "Screenshot Region (Apple top row)", "omarchy-capture-screenshot region")
 o.bind("SUPER + XF86AudioRaiseVolume", "Screenshot Display (Apple top row)", "omarchy-capture-screenshot fullscreen")
-o.bind("SUPER + ALT + XF86AudioRaiseVolume", "Screen recording Display (Apple top row)", "omarchy-capture-screenrecording --fullscreen")
+o.bind("SUPER + ALT + XF86AudioRaiseVolume", "Screen recording (Apple top row)", "omarchy-capture-screenrecording --stop-recording || omarchy-menu toggle trigger.capture.screenrecord-display")
 
 o.bind("SUPER + ALT + code:34", "Make webcam overlay smaller", "omarchy-capture-webcam-resize smaller")
 o.bind("SUPER + ALT + code:35", "Make webcam overlay larger", "omarchy-capture-webcam-resize larger")
