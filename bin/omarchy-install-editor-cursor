@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# omarchy:summary=Install the Cursor editor
+# omarchy:requires-sudo=true
+
+set -euo pipefail
+
+# The previous aarch64 AppImage workaround owned the same desktop files as
+# cursor-bin. Remove those leftovers before pkg-add so pacman does not fail
+# with "exists in filesystem".
+remove_aarch64_appimage_leftovers() {
+  omarchy-hw-apple-silicon || return 0
+  omarchy-pkg-present cursor-bin && return 0
+
+  sudo rm -f /opt/cursor/cursor.AppImage /usr/local/bin/cursor \
+    /usr/share/applications/cursor.desktop \
+    /usr/share/applications/cursor-url-handler.desktop \
+    /usr/share/pixmaps/co.anysphere.cursor.png
+  sudo rm -f /usr/share/icons/hicolor/*/apps/co.anysphere.cursor.png
+  if [[ -d /opt/cursor ]]; then
+    sudo rmdir /opt/cursor 2>/dev/null || true
+  fi
+}
+
+wrap_cursor_for_agx() {
+  omarchy-hw-apple-silicon || return 0
+  local real=${OMARCHY_CURSOR_BIN:-/usr/bin/cursor}
+  local vendor=${OMARCHY_CURSOR_DESKTOP:-/usr/share/applications/cursor.desktop}
+  [[ -x $real ]] || return 0
+  if omarchy-cmd-electron-gl-wrap cursor "$real"; then
+    omarchy-cmd-desktop-exec-repair "$HOME/.local/share/applications/cursor.desktop" \
+      "$vendor" "${OMARCHY_ELECTRON_GL_BIND_DIR:-/usr/local/bin}/cursor" "$real" cursor
+    omarchy-cmd-desktop-exec-repair "$HOME/.local/share/applications/cursor-url-handler.desktop" \
+      /usr/share/applications/cursor-url-handler.desktop \
+      "${OMARCHY_ELECTRON_GL_BIND_DIR:-/usr/local/bin}/cursor" "$real" cursor
+  else
+    status=$?
+    if ((status == 3)); then
+      echo "Preserving administrator-owned Cursor launcher" >&2
+    else
+      return "$status"
+    fi
+  fi
+}
+
+echo "Installing Cursor..."
+remove_aarch64_appimage_leftovers
+omarchy-pkg-add cursor-bin
+wrap_cursor_for_agx
+
+echo "Cursor installed successfully"
+nohup gtk-launch cursor >/dev/null 2>&1 </dev/null &
