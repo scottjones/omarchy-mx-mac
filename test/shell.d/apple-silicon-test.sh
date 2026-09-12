@@ -34,6 +34,22 @@ if OMARCHY_PROC_ROOT="$proc_root" PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-hw-a
 fi
 pass "Apple Silicon detector rejects non-Apple aarch64 systems"
 
+printf 'apple,j313\0apple,t8103\0' >"$proc_root/device-tree/compatible"
+OMARCHY_PROC_ROOT="$proc_root" PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-hw-mlx-supported" ||
+  fail "mlx-supported detector accepts t8103"
+pass "mlx-supported detector accepts t8103"
+
+printf 'apple,j314s\0apple,t6020\0' >"$proc_root/device-tree/compatible"
+if OMARCHY_PROC_ROOT="$proc_root" PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-hw-mlx-supported"; then
+  fail "mlx-supported detector rejects SoCs the pinned wheel cannot run"
+fi
+pass "mlx-supported detector rejects SoCs the pinned wheel cannot run"
+
+if OMARCHY_TEST_ARCH=x86_64 OMARCHY_PROC_ROOT="$proc_root" PATH="$stub_bin:$PATH" "$ROOT/bin/omarchy-hw-mlx-supported"; then
+  fail "mlx-supported detector rejects non-aarch64 systems"
+fi
+pass "mlx-supported detector rejects non-aarch64 systems"
+
 cat >"$stub_bin/omarchy-hw-apple-silicon" <<'EOF'
 #!/bin/bash
 exit 0

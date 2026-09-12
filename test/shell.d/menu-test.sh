@@ -272,14 +272,16 @@ assert(!defaultById['install.ai.crush'], 'menu removes Crush from Install > AI')
 // being there: no package for this architecture at all, which is what the
 // `omarchy-install-available <id>` guard asks. Chromium Account hides for
 // a Chromium-policy reason. Windows hides on Apple Silicon because the VM
-// is x86_64 KVM. Any other `when:` here is a row that vanished once installed.
+// is x86_64 KVM. MLX hides off Apple Silicon; the installer still skips
+// SoCs the pinned wheel cannot run.
+// Any other `when:` here is a row that vanished once installed.
 const availabilityGuard = when => typeof when === 'string' && when.startsWith('omarchy-install-available ')
 assertDeepEqual(
   defaultItems
     .filter(item => item.id.startsWith('install.') && item.action && item.when && !availabilityGuard(item.when))
     .map(item => item.id)
     .sort(),
-  ['install.service.chromium-account', 'install.windows'].sort(),
+  ['install.ai.mlx', 'install.service.chromium-account', 'install.windows'].sort(),
   'menu never hides an Install row because the software is already there'
 )
 assert(

@@ -1,0 +1,11 @@
+#!/bin/bash
+
+# omarchy:summary=Detect whether mlx-omarchy's pinned wheel can run on this GPU
+
+# Keep this list in step with INSTALLER_REF in omarchy-install-ai-mlx. Today
+# that wheel is t8103 (original M1) only. Add SoC names here when Josh's
+# installer supports them; do not add a new hw-* command per chip.
+proc_root="${OMARCHY_PROC_ROOT:-/proc}"
+
+[[ $(uname -m) == "aarch64" ]] &&
+  grep -aqE 'apple,t8103' "$proc_root/device-tree/compatible" 2>/dev/null
