@@ -8,13 +8,21 @@ grep -F 'omarchy-hw-apple-silicon' "$ROOT/bin/omarchy-windows-vm" >/dev/null ||
   fail "Windows VM refuses Apple Silicon"
 grep -F 'omarchy-hw-apple-silicon' "$ROOT/bin/omarchy-hibernation-setup" >/dev/null ||
   fail "hibernation setup skips Apple Silicon"
-grep -F 'uname -m' "$ROOT/bin/omarchy-install-docker-dbs" >/dev/null
-grep -F 'MSSQL is not available on aarch64' "$ROOT/bin/omarchy-install-docker-dbs" >/dev/null
-grep -F 'aarch64_voxtype_src' "$ROOT/bin/omarchy-voxtype-install" >/dev/null
+grep -F 'uname -m' "$ROOT/bin/omarchy-install-docker-dbs" >/dev/null ||
+  fail "Docker DB installer checks the architecture"
+grep -F 'MSSQL is not available on aarch64' "$ROOT/bin/omarchy-install-docker-dbs" >/dev/null ||
+  fail "Docker DB installer explains the missing MSSQL image on aarch64"
+grep -F 'aarch64_voxtype_src' "$ROOT/bin/omarchy-voxtype-install" >/dev/null ||
+  fail "dictation installer builds voxtype from the AUR on aarch64"
 grep -F 'pacman -Qo "$kernel"' "$ROOT/bin/omarchy-update-restart" >/dev/null ||
   fail "kernel reboot prompt still matches the running package-owned vmlinuz"
-grep -F 'install.editor.cursor' "$ROOT/bin/omarchy-install-available" >/dev/null
-grep -F 'install.ai.dictation' "$ROOT/bin/omarchy-install-available" >/dev/null
+# The aarch64 tarball/AppImage rows live in the shared availability helper,
+# which both omarchy-install-available and the menu's inline guard source.
+availability_helper="$ROOT/install/helpers/optional-packages.sh"
+grep -F 'install.editor.cursor' "$availability_helper" >/dev/null ||
+  fail "Cursor stays offered on aarch64 through the shared availability helper"
+grep -F 'install.ai.dictation' "$availability_helper" >/dev/null ||
+  fail "Dictation stays offered on aarch64 through the shared availability helper"
 pass "aarch64 install gates are wired"
 
 test_tmp=$(mktemp -d)
