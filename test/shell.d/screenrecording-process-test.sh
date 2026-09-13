@@ -61,8 +61,6 @@ grep -Fq '"when":"omarchy-capture-screenrecording-process"' "$ROOT/default/omarc
   fail "Stop Screenrecording uses the process helper so wf-recorder counts"
 ! grep -Fq "pgrep -f '^gpu-screen-recorder'" "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
   fail "Stop Screenrecording still greps gpu-screen-recorder"
-grep -F 'SUPER + ALT + F12' "$ROOT/default/hypr/bindings/utilities.lua" | grep -Fq 'trigger.capture.screenrecord-display' ||
-  fail "Super+Alt+F12 opens the fullscreen screenrecord audio menu"
-grep -Fq 'omarchy-capture-screenrecording --fullscreen --with-desktop-audio' "$ROOT/default/omarchy/omarchy-menu.jsonc" ||
-  fail "the Super+Alt+F12 audio menu starts a fullscreen recording"
+! grep -Fq 'SUPER + ALT + F12' "$ROOT/default/hypr/bindings/utilities.lua" ||
+  fail "Super+Alt+F12 should not start a recording"
 pass "the bar recording indicator follows the recorder process helper"
