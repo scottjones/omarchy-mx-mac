@@ -52,3 +52,12 @@ run_leaf 1
 ! grep -q 'omarchy-apple-touchpad' "$input" ||
   fail "an existing macOS-like override is not duplicated"
 pass "an existing macOS-like override is not duplicated"
+
+# A user who turned natural scrolling off keeps it off: fork installs predate
+# the marker, so first adoption is exactly this unmarked case.
+printf '%s\n' 'hl.config({' '  input = {' '    touchpad = {' '      natural_scroll = false,' '    },' '  },' '})' >"$input"
+before=$(cat "$input")
+run_leaf 1
+[[ $(cat "$input") == "$before" ]] ||
+  fail "an explicit natural_scroll = false is preserved" "$(cat "$input")"
+pass "an explicit touchpad choice is preserved"

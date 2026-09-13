@@ -6,9 +6,11 @@ omarchy-hw-apple-silicon || return 0
 input="${OMARCHY_HYPR_INPUT:-$HOME/.config/hypr/input.lua}"
 [[ -f $input ]] || return 0
 grep -q 'omarchy-apple-touchpad' "$input" && return 0
-# Fork templates already set these without the marker; do not append a duplicate.
-if grep -q '^[[:space:]]*natural_scroll = true' "$input" &&
-  grep -q '^[[:space:]]*tap_to_click = false' "$input"; then
+# Either key already set is somebody's decision -- a fork template that shipped
+# these values, or a user who turned natural scrolling off on purpose. Appending
+# would override it, so only a file that says nothing about either gets the
+# defaults.
+if grep -Eq '^[[:space:]]*(natural_scroll|tap_to_click)[[:space:]]*=' "$input"; then
   return 0
 fi
 
