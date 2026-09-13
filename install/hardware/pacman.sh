@@ -10,3 +10,6 @@ SigLevel = Never
 EOF
   fi
 fi
+
+# Apple Silicon: the aarch64 Omarchy package repository.
+source "$OMARCHY_INSTALL/hardware/apple/pacman.sh"
