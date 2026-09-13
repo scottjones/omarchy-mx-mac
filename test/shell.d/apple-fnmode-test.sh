@@ -55,9 +55,12 @@ run_leaf() {
     TEST_LOG="$calls" bash -c 'source "$1"' _ "$leaf"
 }
 
+pending="$test_tmp/var/lib/omarchy/migrations/1789132067-initramfs-pending"
+
 run_migration() {
   APPLE_SILICON="${1:-0}" OMARCHY_HID_APPLE_CONF="$conf" \
     OMARCHY_HID_APPLE_FNMODE="$test_tmp/missing-fnmode" \
+    OMARCHY_HID_APPLE_PENDING="$pending" \
     PATH="$stub_bin:$PATH" TEST_LOG="$calls" \
     bash -euo pipefail "$migration"
 }
@@ -93,7 +96,25 @@ run_migration 1
 [[ $(<"$conf") == "options hid_apple fnmode=1" ]] ||
   fail "the migration rewrites the stock fnmode=2 default on Apple Silicon" "$(cat "$conf")"
 grep -q $'mkinitcpio\t-P' "$calls" || fail "the migration rebuilds the initramfs after rewriting fnmode"
+[[ ! -e $pending ]] || fail "a successful rebuild clears the pending marker"
 pass "the migration rewrites fnmode=2 on Apple Silicon"
+
+# A failed rebuild must leave the migration pending, and the rerun must rebuild
+# even though the config already reads fnmode=1.
+printf 'options hid_apple fnmode=2\n' >"$conf"
+: >"$calls"
+if MKINITCPIO_STATUS=1 run_migration 1 2>/dev/null; then
+  fail "the migration reports a failed initramfs rebuild"
+fi
+[[ $(<"$conf") == "options hid_apple fnmode=1" ]] ||
+  fail "a failed rebuild keeps the rewritten config" "$(cat "$conf")"
+[[ -f $pending ]] || fail "a failed rebuild leaves the pending marker"
+: >"$calls"
+run_migration 1
+grep -q $'mkinitcpio\t-P' "$calls" || fail "the rerun rebuilds the initramfs it still owes"
+[[ ! -e $pending ]] || fail "the rerun clears the pending marker after rebuilding"
+[[ $(<"$conf") == "options hid_apple fnmode=1" ]] || fail "the rerun leaves the config as fnmode=1"
+pass "a failed initramfs rebuild stays pending and retries"
 
 printf 'options hid_apple fnmode=0\n' >"$conf"
 : >"$calls"
