@@ -20,6 +20,8 @@ grep -F 'omarchy-pkg-drop voxtype voxtype-bin' "$ROOT/bin/omarchy-voxtype-remove
   fail "dictation remove drops both voxtype names"
 grep -F 'pacman -Qo "$kernel"' "$ROOT/bin/omarchy-update-restart" >/dev/null ||
   fail "kernel reboot prompt still matches the running package-owned vmlinuz"
+grep -F '"install.gaming.steam"' "$ROOT/default/omarchy/omarchy-menu.jsonc" | grep -Fq '&& ! omarchy-hw-apple-silicon' ||
+  fail "Steam is not offered on Apple Silicon: stock Steam needs the FEX launcher, and the lib32 helper exits without a PCI GPU"
 pass "aarch64 install gates are wired"
 
 test_tmp=$(mktemp -d)
