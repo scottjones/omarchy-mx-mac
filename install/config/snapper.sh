@@ -1,5 +1,10 @@
 # This leaf is also sourced in conditionals: check failures explicitly instead
 # of relying on the caller's errexit setting.
+#
+# Return codes: 0 configured or nothing to do; 3 an existing Snapper layout was
+# found that this leaf will not touch, left for manual repair; anything else a
+# step that was attempted and failed. Callers that must keep going past a
+# deliberately preserved layout (the repair migration) key on 3.
 configure_snapper_root() {
   local filesystem configs settings name subvolume extra registered=0 other_root=0
   local config_path=${OMARCHY_SNAPPER_CONFIG_PATH:-/etc/snapper/configs/root}
@@ -17,7 +22,7 @@ configure_snapper_root() {
     if [[ $name == "root" ]]; then
       if [[ $subvolume != "/" || -n $extra ]]; then
         echo "Error: Snapper root config targets an unexpected subvolume; preserving existing state." >&2
-        return 1
+        return 3
       fi
       registered=$((registered + 1))
     elif [[ $subvolume == "/" ]]; then
@@ -29,13 +34,13 @@ configure_snapper_root() {
     settings=$(snapper --no-dbus --csvout -c root get-config --columns key,value) || return $?
     if ! grep -qFx 'FSTYPE,btrfs' <<<"$settings" || ! grep -qFx 'SUBVOLUME,/' <<<"$settings"; then
       echo "Error: Snapper root config does not describe the btrfs root; preserving existing state." >&2
-      return 1
+      return 3
     fi
     # A config file alone is not a working backend. Never recreate a partial
     # backend: it may contain snapshots or administrator-managed mounts.
     if [[ -L $snapshots_path ]] || ! btrfs subvolume show "$snapshots_path" >/dev/null; then
       echo "Error: Snapper root snapshot backend is incomplete; preserving it for manual repair." >&2
-      return 1
+      return 3
     fi
     snapper --no-dbus -c root list >/dev/null || return $?
     # Setup and the service-repair migration both promise active cleanup,
@@ -50,7 +55,7 @@ configure_snapper_root() {
 
   if (( registered || other_root )) || [[ -e $config_path || -L $config_path || -e $snapshots_path || -L $snapshots_path ]]; then
     echo "Error: Partial or conflicting Snapper root configuration; preserving configs and snapshots for manual repair." >&2
-    return 1
+    return 3
   fi
 
   if [[ ! -r $template ]]; then

@@ -112,7 +112,9 @@ for mode in direct source conditional; do
       alternate) echo 'system,/' >>"$FIXTURE/registry" ;;
     esac
     cp "$FIXTURE/registry" "$FIXTURE/expected-registry"
-    if run_leaf "$mode" >"$FIXTURE/output" 2>&1; then fail "$partial must fail closed"; fi
+    status=0
+    run_leaf "$mode" >"$FIXTURE/output" 2>&1 || status=$?
+    (( status == 3 )) || fail "$partial must fail closed with the preserved-state code" "status=$status"
     cmp "$FIXTURE/registry" "$FIXTURE/expected-registry"
     ! grep -E 'create-config|systemctl' "$TEST_LOG" || fail 'partial state has no mutations'
   done
@@ -179,3 +181,24 @@ run_migrate 1 ext2/ext3 >/dev/null
   fail 'non-btrfs Apple Silicon still completes later migrations'
 ! grep -q 'create-config' "$TEST_LOG" || fail 'non-btrfs does not create a Snapper config'
 pass 'Snapper repair skips non-btrfs Apple Silicon without blocking later migrations'
+
+# A layout the leaf deliberately leaves alone is not a failed repair: the
+# migration completes and later migrations still run.
+new_fixture migration-preserved
+mkdir "$FIXTURE/snapshots"
+run_migrate 1 btrfs >"$FIXTURE/output" 2>&1
+[[ -f $FIXTURE/state/$(basename "$migration") && -f $FIXTURE/state/9999999999.sh ]] ||
+  fail 'a preserved Snapper layout does not block later migrations' "$(cat "$FIXTURE/output")"
+grep -q 'left for manual repair' "$FIXTURE/output" || fail 'the preserved layout is reported'
+! grep -E 'create-config|systemctl' "$TEST_LOG" || fail 'the preserved layout is not mutated'
+pass 'Snapper repair completes past a layout it refuses to touch'
+
+# A step that was attempted and failed keeps the migration pending and stops
+# the queue, as the migrations guide requires.
+new_fixture migration-failed
+status=0
+FAIL_AT=create run_migrate 1 btrfs >"$FIXTURE/output" 2>&1 || status=$?
+(( status != 0 )) || fail 'a failed Snapper repair fails the migration run'
+[[ ! -e $FIXTURE/state/$(basename "$migration") && ! -e $FIXTURE/state/9999999999.sh ]] ||
+  fail 'a failed Snapper repair stays pending and stops later migrations'
+pass 'Snapper repair stays pending when a step fails'
