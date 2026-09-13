@@ -6,13 +6,18 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 leaf="$ROOT/install/hardware/apple/pacman.sh"
 hardware_pacman="$ROOT/install/hardware/pacman.sh"
-migration="$ROOT/migrations/1789336732.sh"
+migration="$ROOT/migrations/1789228200.sh"
 
-grep -Fq 'hardware/apple/pacman.sh' "$hardware_pacman" ||
-  fail "the Apple Silicon repository leaf runs with the hardware pacman extensions"
-grep -Fq 'hardware/pacman.sh' "$ROOT/install/post-install/pacman.sh" ||
-  fail "hardware pacman extensions still run after the pacman.conf restore"
-pass "the [omarchy-aarch64] leaf is wired into system setup"
+hardware_all="$ROOT/install/hardware/all.sh"
+grep -Fq 'hardware/apple/pacman.sh' "$hardware_all" ||
+  fail "the Apple Silicon repository leaf runs during hardware setup"
+(( $(grep -n 'hardware/apple/pacman.sh' "$hardware_all" | cut -d: -f1) < $(grep -n 'hardware/apple/video-decode.sh' "$hardware_all" | cut -d: -f1) )) ||
+  fail "the repository leaf runs before the Apple leaves that install from it"
+! grep -Fq 'apple/pacman.sh' "$hardware_pacman" ||
+  fail "the repository leaf is not run a second time from the pacman extensions"
+[[ $(basename "$migration") < 1789228235.sh ]] ||
+  fail "the repository migration sorts before the share-picker migration that installs from it"
+pass "the [omarchy-aarch64] leaf runs before its consumers"
 
 test_tmp=$(mktemp -d)
 trap 'rm -rf "$test_tmp"' EXIT
@@ -33,6 +38,7 @@ SH
 cat >"$stub_bin/pacman" <<'SH'
 #!/bin/bash
 printf 'pacman %s\n' "$*" >>"$TEST_LOG"
+exit "${PACMAN_SY_STATUS:-0}"
 SH
 chmod +x "$stub_bin"/*
 
@@ -40,15 +46,17 @@ stock_conf() {
   printf '%s\n' '[options]' 'Architecture = auto' '' '[core]' 'Include = /etc/pacman.d/mirrorlist' >"$conf"
 }
 
+pending="$test_tmp/var/lib/omarchy/migrations/omarchy-aarch64-sync-pending"
+
 run_leaf() {
   : >"$calls"
-  APPLE_SILICON="${1:-0}" OMARCHY_PACMAN_CONF="$conf" TEST_LOG="$calls" PATH="$stub_bin:$PATH" \
+  APPLE_SILICON="${1:-0}" OMARCHY_PACMAN_CONF="$conf" OMARCHY_AARCH64_REPO_PENDING="$pending" TEST_LOG="$calls" PATH="$stub_bin:$PATH" \
     bash -euo pipefail -c 'source "$1"' _ "$leaf"
 }
 
 run_migration() {
   : >"$calls"
-  APPLE_SILICON="${1:-0}" OMARCHY_PACMAN_CONF="$conf" OMARCHY_PATH="$ROOT" TEST_LOG="$calls" PATH="$stub_bin:$PATH" \
+  APPLE_SILICON="${1:-0}" OMARCHY_PACMAN_CONF="$conf" OMARCHY_AARCH64_REPO_PENDING="$pending" OMARCHY_PATH="$ROOT" TEST_LOG="$calls" PATH="$stub_bin:$PATH" \
     bash -euo pipefail "$migration"
 }
 
@@ -64,13 +72,30 @@ grep -Fxq 'Server = https://github.com/omarchy-mac/omarchy-pkgs-aarch64/releases
   fail "the stanza points at the omarchy-pkgs-aarch64 releases"
 grep -Fxq 'SigLevel = Optional TrustAll' "$conf" || fail "the stanza declares the unsigned repository"
 grep -Fxq '[core]' "$conf" || fail "the existing repositories are kept"
-pass "Apple Silicon gets the [omarchy-aarch64] repository"
+grep -Fxq 'pacman -Sy' "$calls" || fail "the leaf fetches the new database" "$(cat "$calls")"
+[[ ! -e $pending ]] || fail "a successful fetch clears the pending marker"
+pass "Apple Silicon gets the [omarchy-aarch64] repository and its database"
 
 after=$(cat "$conf")
 run_leaf 1
 [[ $(cat "$conf") == "$after" ]] || fail "the leaf does not append a second stanza"
 (( $(grep -c '^\[omarchy-aarch64\]' "$conf") == 1 )) || fail "exactly one stanza is present"
+! grep -q 'pacman -Sy' "$calls" || fail "a rerun with nothing owed does not resync" "$(cat "$calls")"
 pass "the leaf is idempotent"
+
+# A failed fetch leaves the stanza in place but keeps the sync owed: the leaf
+# fails, and the next run fetches again before anything can install from it.
+stock_conf
+: >"$calls"
+if PACMAN_SY_STATUS=1 run_leaf 1 2>/dev/null; then
+  fail "a failed database fetch fails the leaf"
+fi
+grep -Fxq '[omarchy-aarch64]' "$conf" || fail "a failed fetch keeps the stanza"
+[[ -f $pending ]] || fail "a failed fetch leaves the sync pending"
+run_leaf 1
+grep -Fxq 'pacman -Sy' "$calls" || fail "the rerun fetches the database it still owes" "$(cat "$calls")"
+[[ ! -e $pending ]] || fail "the rerun clears the pending marker"
+pass "a failed database fetch stays pending and retries"
 
 stock_conf
 run_migration 0
@@ -87,3 +112,11 @@ run_migration 1
 ! grep -q 'pacman -Sy' "$calls" || fail "a rerun does not resync when nothing was added" "$(cat "$calls")"
 (( $(grep -c '^\[omarchy-aarch64\]' "$conf") == 1 )) || fail "a rerun does not duplicate the stanza"
 pass "the migration is idempotent"
+
+stock_conf
+if PACMAN_SY_STATUS=1 run_migration 1 2>/dev/null; then
+  fail "the migration stays pending when the database fetch fails"
+fi
+run_migration 1
+grep -Fxq 'pacman -Sy' "$calls" || fail "the retried migration fetches the database" "$(cat "$calls")"
+pass "the migration stays pending until the database has been fetched"
