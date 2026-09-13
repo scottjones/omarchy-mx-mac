@@ -208,3 +208,10 @@ grep -Fq 'subvolid=5' "$restore" && grep -Fq 'filesystem behind /' "$restore" ||
 ! grep -Fq 'uname -r' "$restore" || fail "the kernel check no longer trusts the running kernel"
 grep -Fq '@old-$stamp/usr/lib/modules' "$restore" || fail "the kernel check reads the displaced root's installed kernels"
 pass "rehearsal isolation and the boot-kernel check are in place"
+
+rehearsal="$ROOT/test/manual/snapshot-restore-rehearsal.sh"
+[[ -f $rehearsal ]] || fail "the loopback rehearsal lives in the repository"
+grep -Fq 'set -euo pipefail' "$rehearsal" || fail "the rehearsal runs under errexit"
+! grep -Eq '&& echo|&& printf' "$rehearsal" || fail "rehearsal checks are fatal, not echo-on-success"
+grep -Fq -- '--rehearse "$mnt"' "$rehearsal" || fail "the rehearsal drives the real --rehearse mode"
+pass "the loopback rehearsal is in the repository with fatal checks"
