@@ -148,3 +148,63 @@ pass "a root without a snapper store swaps cleanly"
 grep -F -- '--rehearse' "$restore" >/dev/null || fail "the restore has a rehearsal mode"
 grep -F 'OMARCHY_SNAPSHOT_RESTORE_CHOICE' "$restore" >/dev/null || fail "rehearsal picks non-interactively"
 pass "the restore can be rehearsed against a scratch filesystem"
+
+# The swap runs inside an if in main, where errexit is off, so every step has
+# to check itself. A failed snapshot must change nothing, a stale @new must be
+# refused rather than promoted to the root, and a failed second rename must
+# put the old root back.
+fail_bin="$test_tmp/fail-bin"
+mkdir -p "$fail_bin"
+cat >"$fail_bin/btrfs" <<'SH'
+#!/bin/bash
+case "$1 $2" in
+  "subvolume snapshot") [[ ${BTRFS_FAIL:-} != snapshot ]] || exit 1; cp -a "$3" "$4" ;;
+  "subvolume show") [[ -f $3/.omarchy-test-subvolume ]] ;;
+  *) exit 99 ;;
+esac
+SH
+cat >"$fail_bin/mv" <<'SH'
+#!/bin/bash
+# Fail only the rename whose source is MV_FAIL_SRC, so the recovery rename that
+# follows a failed one can still succeed.
+[[ ${MV_FAIL_SRC:-} != "${@: -2:1}" ]] || exit 1
+exec /usr/bin/mv "$@"
+SH
+chmod +x "$fail_bin"/*
+
+run_swap_only() {
+  local top=$1 source=$2
+  PATH="$fail_bin:$PATH" bash -euo pipefail -c '
+    source "$1"
+    if swap_root "$2" "$3" 123; then echo swapped; else echo "refused $?"; fi
+  ' _ "$restore" "$top" "$source" 2>&1
+}
+
+build_tree "$tree"
+result=$(BTRFS_FAIL=snapshot run_swap_only "$tree" "@/.snapshots/1/snapshot")
+grep -q '^refused' <<<"$result" || fail "a failed snapshot is reported" "$result"
+[[ $(cat "$tree/@/marker") == live && ! -e $tree/@old-123 && ! -e $tree/@new ]] ||
+  fail "a failed snapshot changes nothing" "$(ls "$tree")"
+pass "a failed snapshot leaves the root untouched and reports failure"
+
+build_tree "$tree"
+mkdir -p "$tree/@new"
+echo stale >"$tree/@new/marker"
+result=$(run_swap_only "$tree" "@/.snapshots/1/snapshot")
+grep -q '^refused' <<<"$result" && grep -q 'already exists' <<<"$result" || fail "a stale @new is refused" "$result"
+[[ $(cat "$tree/@/marker") == live && ! -e $tree/@old-123 && $(cat "$tree/@new/marker") == stale ]] ||
+  fail "a stale @new is never promoted to the root" "$(ls "$tree")"
+pass "a stale @new is refused instead of becoming the root"
+
+build_tree "$tree"
+result=$(MV_FAIL_SRC="$tree/@new" run_swap_only "$tree" "@/.snapshots/1/snapshot")
+grep -q '^refused' <<<"$result" || fail "a failed second rename is reported" "$result"
+[[ $(cat "$tree/@/marker") == live ]] || fail "a failed second rename puts the old root back" "$(ls "$tree"; cat "$tree/@/marker" 2>/dev/null)"
+[[ ! -e $tree/@old-123 ]] || fail "the moved-aside root is renamed back"
+pass "a failed second rename restores the original root"
+
+grep -Fq 'subvolid=5' "$restore" && grep -Fq 'filesystem behind /' "$restore" ||
+  fail "the rehearsal refuses anything but a scratch filesystem's top level"
+! grep -Fq 'uname -r' "$restore" || fail "the kernel check no longer trusts the running kernel"
+grep -Fq '@old-$stamp/usr/lib/modules' "$restore" || fail "the kernel check reads the displaced root's installed kernels"
+pass "rehearsal isolation and the boot-kernel check are in place"

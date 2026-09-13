@@ -120,11 +120,39 @@ describe_subvolume() {
 #
 # Two renames, not one: there is no atomic exchange from a shell. The window is
 # a few milliseconds, and main prints what to do if a crash lands inside it.
+# Every step checks its own result: this runs inside an if, where errexit is
+# off, and a snapshot that failed must never let a stale @new become the root.
 swap_root() {
   local top=$1 source_path=$2 stamp=$3
-  btrfs subvolume snapshot "$top/$source_path" "$top/@new" >/dev/null
-  mv "$top/@" "$top/@old-$stamp"
-  mv "$top/@new" "$top/@"
+  if [[ ! -d $top/@ ]]; then
+    warn "no @ subvolume at the top of $top"
+    return 1
+  fi
+  if [[ -e $top/@new || -L $top/@new ]]; then
+    warn "$top/@new already exists, left by an earlier attempt; move it aside or delete it before restoring"
+    return 1
+  fi
+  if [[ -e $top/@old-$stamp ]]; then
+    warn "$top/@old-$stamp already exists"
+    return 1
+  fi
+  if ! btrfs subvolume snapshot "$top/$source_path" "$top/@new" >/dev/null; then
+    warn "could not snapshot $source_path; nothing was changed"
+    return 1
+  fi
+  if ! mv "$top/@" "$top/@old-$stamp"; then
+    warn "could not move the current root aside; the root is unchanged and @new can be deleted"
+    return 1
+  fi
+  if ! mv "$top/@new" "$top/@"; then
+    warn "could not put the restored root in place; moving the current root back"
+    if mv "$top/@old-$stamp" "$top/@"; then
+      warn "the root is back where it was; @new can be deleted"
+    else
+      warn "and that failed too: there is no @ now. From a rescue shell, rename @old-$stamp back to @."
+    fi
+    return 1
+  fi
 }
 
 # Snapper keeps its store as a subvolume nested inside @, and a btrfs snapshot
@@ -179,8 +207,17 @@ main() {
     TOP=$rehearse_top
     mountpoint -q "$TOP" || fail "$TOP is not a mountpoint"
     [[ $(findmnt -no FSTYPE "$TOP") == "btrfs" ]] || fail "$TOP is not btrfs"
-    [[ -d $TOP/@ ]] || fail "$TOP has no @ subvolume; mount the filesystem's top level (subvolid=5)"
+    # A rehearsal skips the typed confirmation, so it must be provably not the
+    # running system: the filesystem's top level, on a device other than the
+    # one behind /.
+    local options
+    options=$(findmnt -no OPTIONS "$TOP")
+    [[ ,$options, == *,subvolid=5,* || ,$options, == *,subvol=/,* ]] ||
+      fail "$TOP is not the filesystem's top level; mount it with -o subvolid=5"
     root_source=$(findmnt -no SOURCE "$TOP" | sed 's/\[.*\]//')
+    [[ $root_source != "$(findmnt -no SOURCE / | sed 's/\[.*\]//')" ]] ||
+      fail "$TOP is the filesystem behind /; rehearse on a scratch filesystem"
+    [[ -d $TOP/@ ]] || fail "$TOP has no @ subvolume"
     log "Rehearsing against $root_source at $TOP"
   else
     root_source=$(findmnt -no SOURCE / | sed 's/\[.*\]//')
@@ -287,18 +324,20 @@ main() {
   fi
 
   # /boot is the ESP and outside every snapshot, so the restored root is now
-  # paired with whatever kernel is on it. If the install updated linux-asahi
-  # after this snapshot, that kernel has no modules in here.
-  local running restored_kernels
-  running=$(uname -r)
+  # paired with whatever kernel is on it. That kernel is the one the displaced
+  # root had installed, not necessarily the one running: an update installed
+  # since boot already replaced the image on the ESP. Compare module trees.
+  local installed_kernels restored_kernels kernel
+  installed_kernels=$(cd "$TOP/@old-$stamp/usr/lib/modules" 2>/dev/null && echo * || echo "")
   restored_kernels=$(cd "$TOP/@/usr/lib/modules" 2>/dev/null && echo * || echo "")
-  if [[ -n $restored_kernels && " $restored_kernels " != *" $running "* ]]; then
+  for kernel in $installed_kernels; do
+    [[ -n $restored_kernels && " $restored_kernels " != *" $kernel "* ]] || continue
     echo
+    warn "The kernel on /boot is $kernel, installed by the system being replaced."
     warn "The restored system has modules for: $restored_kernels"
-    warn "The kernel currently on /boot is $running, which is not among them."
     warn "Reinstall the kernel from the restored system, or expect missing"
     warn "drivers -- Wi-Fi and the display among them."
-  fi
+  done
 
   echo
   log "Restored. Reboot to run from it. Snapper's snapshot store came along, so"
