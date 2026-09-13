@@ -60,3 +60,91 @@ grep -Fx 'sudo omarchy-system-snapshot-restore' "$calls" >/dev/null ||
   fail "the subvolume swap is used when Limine is absent" "$(cat "$calls")"
 ! grep -q limine-restore "$calls" || fail "Limine restore is not used when the helper is absent"
 pass "the subvolume swap is used when Limine is absent"
+
+# The swap itself, against a scratch tree. btrfs is stubbed: "subvolume
+# snapshot" copies, and "subvolume show" answers for directories carrying a
+# marker file, which stands in for being a real subvolume. A snapshot of @ holds
+# an empty directory where the nested .snapshots store was; the store itself
+# must travel from the displaced root into the restored one.
+swap_bin="$test_tmp/swap-bin"
+mkdir -p "$swap_bin"
+cat >"$swap_bin/btrfs" <<'SH'
+#!/bin/bash
+case "$1 $2" in
+  "subvolume snapshot") cp -a "$3" "$4" ;;
+  "subvolume show") [[ -f $3/.omarchy-test-subvolume ]] ;;
+  *) exit 99 ;;
+esac
+SH
+chmod +x "$swap_bin/btrfs"
+
+# @ with a marker, a snapper store holding snapshot 1 whose contents differ from
+# the live root, and the empty .snapshots placeholder inside that snapshot.
+build_tree() {
+  local top=$1
+  rm -rf "$top"
+  mkdir -p "$top/@/.snapshots/1/snapshot/.snapshots" "$top/@/.snapshots/1/snapshot/usr/share/omarchy"
+  echo live >"$top/@/marker"
+  echo snap >"$top/@/.snapshots/1/snapshot/marker"
+  touch "$top/@/.snapshots/.omarchy-test-subvolume"
+  printf '<snapshot><date>2026-09-12 10:00:00</date><description>pre-update</description></snapshot>\n' >"$top/@/.snapshots/1/info.xml"
+}
+
+run_swap() {
+  local top=$1 source=$2
+  PATH="$swap_bin:$PATH" bash -euo pipefail -c '
+    source "$1"
+    swap_root "$2" "$3" 123
+    move_snapshot_store "$2" "@old-123" "@"
+  ' _ "$restore" "$top" "$source" 2>&1
+}
+
+tree="$test_tmp/tree"
+build_tree "$tree"
+listing=$(PATH="$swap_bin:$PATH" bash -c 'source "$1"; list_store_snapshots "$2"' _ "$restore" "$tree")
+[[ $listing == $'1\t2026-09-12 10:00:00\tpre-update' ]] ||
+  fail "the rehearsal listing reads snapshot number, date and description off the store" "$listing"
+pass "the rehearsal listing reads snapshots off the store"
+
+run_swap "$tree" "@/.snapshots/1/snapshot" >"$test_tmp/swap.out" || fail "the swap succeeds" "$(cat "$test_tmp/swap.out")"
+[[ $(cat "$tree/@/marker") == snap ]] || fail "@ now holds the chosen snapshot"
+[[ $(cat "$tree/@old-123/marker") == live ]] || fail "the displaced root is kept as @old-<stamp>"
+[[ ! -e $tree/@new ]] || fail "no @new is left behind"
+[[ -f $tree/@/.snapshots/.omarchy-test-subvolume ]] || fail "the snapshot store is a subvolume under the restored root"
+[[ $(cat "$tree/@/.snapshots/1/snapshot/marker") == snap ]] || fail "earlier snapshots are still in the store"
+[[ ! -e $tree/@old-123/.snapshots ]] || fail "nothing nested stays in @old-<stamp>"
+pass "the swap carries the snapper store into the restored root"
+
+# A baseline like @fresh has no .snapshots at all: the store still comes across.
+build_tree "$tree"
+mkdir -p "$tree/@fresh"
+echo fresh >"$tree/@fresh/marker"
+run_swap "$tree" "@fresh" >"$test_tmp/swap.out" || fail "the baseline swap succeeds" "$(cat "$test_tmp/swap.out")"
+[[ $(cat "$tree/@/marker") == fresh ]] || fail "@ now holds the baseline"
+[[ -f $tree/@/.snapshots/.omarchy-test-subvolume ]] || fail "the store moves into a baseline that had none"
+[[ ! -e $tree/@old-123/.snapshots ]] || fail "the store leaves the displaced root"
+pass "restoring a baseline still carries the snapper store"
+
+# Something other than the empty placeholder at the restored .snapshots is not
+# ours to remove: the swap stands, the store stays put, and the caller is told.
+build_tree "$tree"
+echo stray >"$tree/@/.snapshots/1/snapshot/.snapshots/file"
+if run_swap "$tree" "@/.snapshots/1/snapshot" >"$test_tmp/swap.out"; then
+  fail "a non-empty .snapshots in the snapshot is refused"
+fi
+[[ $(cat "$tree/@/marker") == snap ]] || fail "the root swap still stands when the store move is refused"
+[[ -f $tree/@old-123/.snapshots/.omarchy-test-subvolume ]] || fail "the store stays where it was when refused"
+grep -q 'not the empty placeholder' "$test_tmp/swap.out" || fail "the refusal is explained" "$(cat "$test_tmp/swap.out")"
+pass "a non-empty placeholder stops the store move without losing the store"
+
+# The displaced root without a store (never had snapper) is left alone.
+build_tree "$tree"
+rm -rf "$tree/@/.snapshots"
+mkdir -p "$tree/@fresh"
+run_swap "$tree" "@fresh" >"$test_tmp/swap.out" || fail "a swap without a store succeeds" "$(cat "$test_tmp/swap.out")"
+[[ ! -e $tree/@/.snapshots ]] || fail "no store is invented"
+pass "a root without a snapper store swaps cleanly"
+
+grep -F -- '--rehearse' "$restore" >/dev/null || fail "the restore has a rehearsal mode"
+grep -F 'OMARCHY_SNAPSHOT_RESTORE_CHOICE' "$restore" >/dev/null || fail "rehearsal picks non-interactively"
+pass "the restore can be rehearsed against a scratch filesystem"
