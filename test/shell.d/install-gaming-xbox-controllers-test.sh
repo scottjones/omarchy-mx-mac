@@ -25,9 +25,10 @@ cat >"$stub_bin/omarchy-pkg-add" <<'STUB'
 printf 'omarchy-pkg-add %s\n' "$*" >>"$CALLS"
 STUB
 
-cat >"$stub_bin/omarchy-hw-apple-silicon" <<'STUB'
+cat >"$stub_bin/uname" <<'STUB'
 #!/bin/bash
-[[ ${APPLE_SILICON:-0} == 1 ]]
+[[ ${1:-} == -m ]] && { printf '%s\n' "${ARCH:-x86_64}"; exit 0; }
+exec /usr/bin/uname "$@"
 STUB
 
 # The rest of the script writes under /etc and pokes the kernel; keep every
@@ -55,7 +56,7 @@ chmod +x "$stub_bin"/*
 run_install() {
   : >"$calls"
   CALLS="$calls" \
-    APPLE_SILICON="${APPLE_SILICON:-0}" \
+    ARCH="${ARCH:-x86_64}" \
     USER="${USER:-tester}" \
     PATH="$stub_bin:$PATH" \
     bash "$ROOT/bin/omarchy-install-gaming-xbox-controllers"
@@ -67,7 +68,7 @@ grep -qx 'omarchy-pkg-add linux-headers xpadneo-dkms' "$calls" ||
   fail "stock Arch does not build xpadneo against linux-headers" "$(<"$calls")"
 pass "xpadneo builds against linux-headers on stock Arch"
 
-APPLE_SILICON=1 run_install >"$test_tmp/out" 2>"$test_tmp/err" ||
+ARCH=aarch64 run_install >"$test_tmp/out" 2>"$test_tmp/err" ||
   fail "installing Xbox controller support on Apple Silicon fails" "$(<"$test_tmp/err")"
 grep -qx 'omarchy-pkg-add linux-asahi-headers xpadneo-dkms' "$calls" ||
   fail "Apple Silicon does not build xpadneo against linux-asahi-headers" "$(<"$calls")"
@@ -79,14 +80,14 @@ pass "xpadneo builds against linux-asahi-headers on Apple Silicon"
 
 # Compare actual installer requests with the independently maintained resolver.
 # Both exact lists must change together; a missing or wrong header cannot pass.
-for apple in 0 1; do
-  APPLE_SILICON=$apple run_install >/dev/null
-  selected=$(OMARCHY_PATH="$ROOT" APPLE_SILICON=$apple PATH="$stub_bin:$PATH" bash -c '
+for arch in x86_64 aarch64; do
+  ARCH=$arch run_install >/dev/null
+  selected=$(OMARCHY_PATH="$ROOT" ARCH=$arch PATH="$stub_bin:$PATH" bash -c '
     source "$OMARCHY_PATH/install/helpers/optional-packages.sh"
     __omarchy_optional_targets install.gaming.xbox-controllers
     printf "%s\n" "${__omarchy_requested_packages[*]}"
   ')
   grep -Fx "omarchy-pkg-add $selected" "$calls" >/dev/null ||
-    fail "availability matches the installer selected targets" "Apple=$apple; $selected; $(cat "$calls")"
+    fail "availability matches the installer selected targets" "arch=$arch; $selected; $(cat "$calls")"
 done
 pass "availability includes exactly the headers selected by the installer"

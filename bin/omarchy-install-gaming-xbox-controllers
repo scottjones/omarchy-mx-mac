@@ -12,7 +12,7 @@ echo "Installing Xbox controller Bluetooth support..."
 # Install xpadneo to ensure controllers work out of the box. DKMS builds
 # against the running kernel's headers, which on Apple Silicon is linux-asahi.
 headers=linux-headers
-omarchy-hw-apple-silicon && headers=linux-asahi-headers
+[[ $(uname -m) == "aarch64" ]] && headers=linux-asahi-headers
 omarchy-pkg-add "$headers" xpadneo-dkms
 
 # Prevent xpad/xpadneo driver conflict

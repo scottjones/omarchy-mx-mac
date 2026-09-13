@@ -24,10 +24,6 @@ cat >"$test_tmp/bin/uname" <<'STUB'
 printf 'uname\n' >>"$CALLS"
 echo "${ARCH:-x86_64}"
 STUB
-cat >"$test_tmp/bin/omarchy-hw-apple-silicon" <<'STUB'
-#!/bin/bash
-[[ ${APPLE:-0} == 1 ]]
-STUB
 chmod +x "$test_tmp/bin/"*
 export PATH="$test_tmp/bin:$PATH"
 prelude=$(node -e 'console.log(require(process.argv[1]).guardScript({ probe: { id: "probe", when: "true" } }))' "$ROOT/shell/plugins/menu/MenuModel.js" | grep -v '^if {')
@@ -65,15 +61,19 @@ for arch in x86_64 aarch64; do
   check 1 omarchy-pkg-available missing
   check 0 omarchy-install-available install.editor.zed
   MISSING=omazed check 1 omarchy-install-available install.editor.zed
-  for apple in 0 1; do
-    export APPLE=$apple
-    selected=linux-headers
-    other=linux-asahi-headers
-    if [[ $apple == 1 ]]; then selected=linux-asahi-headers; other=linux-headers; fi
-    check 0 omarchy-install-available install.gaming.xbox-controllers
-    MISSING=$selected check 1 omarchy-install-available install.gaming.xbox-controllers
-    MISSING=$other check 0 omarchy-install-available install.gaming.xbox-controllers
-  done
+  selected=linux-headers
+  other=linux-asahi-headers
+  if [[ $arch == aarch64 ]]; then selected=linux-asahi-headers; other=linux-headers; fi
+  check 0 omarchy-install-available install.gaming.xbox-controllers
+  MISSING=$selected check 1 omarchy-install-available install.gaming.xbox-controllers
+  MISSING=$other check 0 omarchy-install-available install.gaming.xbox-controllers
+  # Preinstalls ask for what omarchy-install-preinstalls will request: the
+  # obsidian pkgbase on x86, its AppImage output on aarch64.
+  targets=$(bash -c 'source "$OMARCHY_PATH/install/helpers/optional-packages.sh"; __omarchy_optional_targets install.preinstalls; printf "%s\n" "${__omarchy_requested_packages[*]}"')
+  expected_obsidian=obsidian
+  [[ $arch != aarch64 ]] || expected_obsidian=obsidian-appimage
+  [[ " $targets " == *" $expected_obsidian "* && " $targets " != *" ${expected_obsidian/obsidian-appimage/obsidian} "* || $expected_obsidian == obsidian ]] ||
+    fail "preinstalls availability follows the installer's obsidian substitution" "arch=$arch targets=$targets"
 done
 ARCH=riscv64 check 1 omarchy-install-available install.browser.chrome
 check 1 omarchy-install-available install.unknown
