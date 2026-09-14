@@ -206,7 +206,7 @@ pass "a failed second rename restores the original root"
 grep -Fq 'subvolid=5' "$restore" && grep -Fq 'filesystem behind /' "$restore" ||
   fail "the rehearsal refuses anything but a scratch filesystem's top level"
 ! grep -Fq 'uname -r' "$restore" || fail "the kernel check no longer trusts the running kernel"
-grep -Fq '@old-$stamp/usr/lib/modules' "$restore" || fail "the kernel check reads the displaced root's installed kernels"
+grep -Fq 'warn_kernel_mismatch "$TOP" "@old-$stamp" "@"' "$restore" || fail "the kernel check reads the displaced root's installed kernels"
 pass "rehearsal isolation and the boot-kernel check are in place"
 
 rehearsal="$ROOT/test/manual/snapshot-restore-rehearsal.sh"
@@ -215,3 +215,18 @@ grep -Fq 'set -euo pipefail' "$rehearsal" || fail "the rehearsal runs under erre
 ! grep -Eq '&& echo|&& printf' "$rehearsal" || fail "rehearsal checks are fatal, not echo-on-success"
 grep -Fq -- '--rehearse "$mnt"' "$rehearsal" || fail "the rehearsal drives the real --rehearse mode"
 pass "the loopback rehearsal is in the repository with fatal checks"
+
+# The kernel on the ESP is whatever the displaced root installed. Warn when the
+# restored root lacks modules for it, and warn just as loudly when it has no
+# modules at all, which is the case the mismatch loop cannot see.
+kernels_tree="$test_tmp/kernels"
+kernel_warnings() {
+  bash -c 'source "$1"; warn_kernel_mismatch "$2" "@old-1" "@"' _ "$restore" "$kernels_tree" 2>&1 >/dev/null
+}
+rm -rf "$kernels_tree"; mkdir -p "$kernels_tree/@old-1/usr/lib/modules/6.2.0-new" "$kernels_tree/@/usr/lib/modules/6.2.0-new"
+[[ -z $(kernel_warnings) ]] || fail "matching module trees produce no warning" "$(kernel_warnings)"
+rm -rf "$kernels_tree"; mkdir -p "$kernels_tree/@old-1/usr/lib/modules/6.2.0-new" "$kernels_tree/@/usr/lib/modules/6.1.0-old"
+kernel_warnings | grep -q 'kernel on /boot is 6.2.0-new' || fail "a newer installed kernel without restored modules is warned about" "$(kernel_warnings)"
+rm -rf "$kernels_tree"; mkdir -p "$kernels_tree/@old-1/usr/lib/modules/6.2.0-new" "$kernels_tree/@/usr"
+kernel_warnings | grep -q 'no kernel modules' || fail "a restored root without modules is warned about" "$(kernel_warnings)"
+pass "the kernel check warns on a mismatch and on a restored root with no modules"

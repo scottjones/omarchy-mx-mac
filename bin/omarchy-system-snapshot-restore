@@ -180,6 +180,37 @@ move_snapshot_store() {
   btrfs subvolume show "$top/$new/.snapshots" >/dev/null
 }
 
+# /boot is the ESP and outside every snapshot, so a restored root is paired
+# with whatever kernel is on it. That kernel is the one the displaced root had
+# installed, not necessarily the one running: an update installed since boot
+# already replaced the image on the ESP. The module trees are the closest
+# thing to a manifest of that; an arm64 kernel image does not carry a readable
+# version string. A restored root with no modules at all gets a warning too,
+# since nothing can be checked and nothing will load.
+warn_kernel_mismatch() {
+  local top=$1 old=$2 new=$3 kernel
+  local installed_kernels restored_kernels
+  installed_kernels=$(cd "$top/$old/usr/lib/modules" 2>/dev/null && echo * || echo "")
+  restored_kernels=$(cd "$top/$new/usr/lib/modules" 2>/dev/null && echo * || echo "")
+  [[ $installed_kernels != "*" ]] || installed_kernels=""
+  [[ $restored_kernels != "*" ]] || restored_kernels=""
+  if [[ -z $restored_kernels ]]; then
+    echo
+    warn "The restored system has no kernel modules under /usr/lib/modules."
+    warn "The kernel on /boot${installed_kernels:+ ($installed_kernels)} will boot it with no drivers."
+    warn "Reinstall the kernel from the restored system before rebooting."
+    return 0
+  fi
+  for kernel in $installed_kernels; do
+    [[ " $restored_kernels " != *" $kernel "* ]] || continue
+    echo
+    warn "The kernel on /boot is $kernel, installed by the system being replaced."
+    warn "The restored system has modules for: $restored_kernels"
+    warn "Reinstall the kernel from the restored system, or expect missing"
+    warn "drivers -- Wi-Fi and the display among them."
+  done
+}
+
 cleanup() {
   (( REHEARSE )) && return 0
   mountpoint -q "$TOP" && umount "$TOP" 2>/dev/null || true
@@ -323,21 +354,7 @@ main() {
     exit 1
   fi
 
-  # /boot is the ESP and outside every snapshot, so the restored root is now
-  # paired with whatever kernel is on it. That kernel is the one the displaced
-  # root had installed, not necessarily the one running: an update installed
-  # since boot already replaced the image on the ESP. Compare module trees.
-  local installed_kernels restored_kernels kernel
-  installed_kernels=$(cd "$TOP/@old-$stamp/usr/lib/modules" 2>/dev/null && echo * || echo "")
-  restored_kernels=$(cd "$TOP/@/usr/lib/modules" 2>/dev/null && echo * || echo "")
-  for kernel in $installed_kernels; do
-    [[ -n $restored_kernels && " $restored_kernels " != *" $kernel "* ]] || continue
-    echo
-    warn "The kernel on /boot is $kernel, installed by the system being replaced."
-    warn "The restored system has modules for: $restored_kernels"
-    warn "Reinstall the kernel from the restored system, or expect missing"
-    warn "drivers -- Wi-Fi and the display among them."
-  done
+  warn_kernel_mismatch "$TOP" "@old-$stamp" "@"
 
   echo
   log "Restored. Reboot to run from it. Snapper's snapshot store came along, so"
