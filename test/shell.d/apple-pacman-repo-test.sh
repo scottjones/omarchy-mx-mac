@@ -6,7 +6,7 @@ source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/base-test.sh"
 
 leaf="$ROOT/install/hardware/apple/pacman.sh"
 hardware_pacman="$ROOT/install/hardware/pacman.sh"
-migration="$ROOT/migrations/1789228200.sh"
+migration="$ROOT/migrations/1788200000.sh"
 
 hardware_all="$ROOT/install/hardware/all.sh"
 grep -Fq 'hardware/apple/pacman.sh' "$hardware_all" ||
@@ -15,8 +15,21 @@ grep -Fq 'hardware/apple/pacman.sh' "$hardware_all" ||
   fail "the repository leaf runs before the Apple leaves that install from it"
 ! grep -Fq 'apple/pacman.sh' "$hardware_pacman" ||
   fail "the repository leaf is not run a second time from the pacman extensions"
-[[ $(basename "$migration") < 1789228235.sh ]] ||
-  fail "the repository migration sorts before the share-picker migration that installs from it"
+# Every Apple Silicon migration runs after the repository exists, whether it
+# installs directly or through a sourced leaf; the runner walks migrations in
+# filename order. A migration counts as Apple Silicon when it names the
+# detector, the architecture, or an Apple leaf; one that exits on the detector
+# is Intel-only and exempt, and so are older upstream migrations that only
+# mention an Asahi package name.
+late=()
+for candidate in "$ROOT"/migrations/*.sh; do
+  [[ $(basename "$candidate") != $(basename "$migration") ]] || continue
+  ! grep -Fq 'omarchy-hw-apple-silicon && exit 0' "$candidate" || continue
+  grep -Eq 'omarchy-hw-apple-silicon|aarch64|hardware/apple/' "$candidate" || continue
+  [[ $(basename "$candidate") > $(basename "$migration") ]] || late+=("$(basename "$candidate")")
+done
+(( ${#late[@]} == 0 )) ||
+  fail "the repository migration sorts before every Apple Silicon migration" "$(printf '%s\n' "${late[@]}")"
 pass "the [omarchy-aarch64] leaf runs before its consumers"
 
 test_tmp=$(mktemp -d)
