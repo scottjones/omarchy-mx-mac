@@ -6,7 +6,11 @@
 set -e
 
 echo "Installing Steam..."
-omarchy-pkg-add steam
+packages=(steam)
+if [[ $(uname -m) == aarch64 ]]; then
+  packages+=(omarchy-steam-fex)
+fi
+omarchy-pkg-add "${packages[@]}"
 omarchy-install-gaming-gpu-lib32
 
 if [[ $(uname -m) == aarch64 ]]; then

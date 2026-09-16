@@ -71,8 +71,9 @@ __omarchy_optional_arch_load() {
 # Architecture substitutions mirror the installers exactly, so a row is shown
 # only when what the installer will actually request is available: xpadneo
 # builds against the running kernel's headers (linux-asahi on aarch64), and the
-# preinstalls swap obsidian for its AppImage build there. Both key on the
-# machine architecture; this helper has no hardware-detector dependency.
+# preinstalls swap obsidian for its AppImage build there, and Steam needs the
+# FEX launcher package. These key on the machine architecture; this helper has
+# no hardware-detector dependency.
 __omarchy_optional_targets() {
   local id=${1:-} headers=linux-headers
   __omarchy_optional_load || return 1
@@ -80,6 +81,10 @@ __omarchy_optional_targets() {
   __omarchy_optional_arch_load || return 1
   read -ra __omarchy_requested_packages <<<"${__omarchy_optional_sync[$id]}"
   case $id in
+    install.gaming.steam)
+      [[ $__omarchy_optional_arch != "aarch64" ]] ||
+        __omarchy_requested_packages+=(omarchy-steam-fex)
+      ;;
     install.gaming.xbox-controllers)
       [[ $__omarchy_optional_arch != "aarch64" ]] || headers=linux-asahi-headers
       __omarchy_requested_packages=("$headers" "${__omarchy_requested_packages[@]}")

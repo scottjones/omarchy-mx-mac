@@ -10,7 +10,7 @@ cat >"$test_tmp/bin/pacman" <<'STUB'
 printf '%s\n' "$*" >>"$CALLS"
 case $1 in
 -Slq)
-  printf '%s\n' primary secondary zed omazed xpadneo-dkms linux-headers linux-asahi-headers wtype voxtype-bin 1password 1password-cli cursor-bin | while read -r p; do
+  printf '%s\n' primary secondary zed omazed xpadneo-dkms linux-headers linux-asahi-headers wtype voxtype-bin 1password 1password-cli cursor-bin steam omarchy-steam-fex | while read -r p; do
     [[ $p == "${MISSING:-}" ]] || echo "$p"
   done ;;
 -Sp)
@@ -61,6 +61,9 @@ for arch in x86_64 aarch64; do
   check 1 omarchy-pkg-available missing
   check 0 omarchy-install-available install.editor.zed
   MISSING=omazed check 1 omarchy-install-available install.editor.zed
+  check 0 omarchy-install-available install.gaming.steam
+  MISSING=steam check 1 omarchy-install-available install.gaming.steam
+  MISSING=omarchy-steam-fex check "$expected" omarchy-install-available install.gaming.steam
   selected=linux-headers
   other=linux-asahi-headers
   if [[ $arch == aarch64 ]]; then selected=linux-asahi-headers; other=linux-headers; fi
